@@ -42,7 +42,11 @@ html, body {
   background: var(--navy-bg);
   color: var(--text-light);
   font-family: "Noto Sans Thai", "Segoe UI", Tahoma, sans-serif;
+  line-height: 1.55;
 }
+
+/* Headings and numbers can sit tighter, but never below the mark-safe minimum. */
+h1, h2, h3 { line-height: 1.35; }
 
 button, input { font-family: inherit; }
 
@@ -304,20 +308,6 @@ button, input { font-family: inherit; }
 }
 .wallet-count { font-size: 11px; }
 
-.username-chip {
-  background: rgba(255,255,255,0.08);
-  color: var(--text-light);
-  border: none;
-  border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  flex-shrink: 0;
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .sync-banner {
   display: flex;
@@ -1182,6 +1172,129 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
 .nav-btn .nav-icon .icon { width: 21px; height: 21px; }
 .logo-badge .icon { width: 19px; height: 19px; color: #1b2436; }
 .logo-badge.small .icon { width: 16px; height: 16px; }
+
+
+/* ---------- Header MENU ---------- */
+
+.header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* Sheet state is legible without opening the menu, since the blueprint puts the
+   spreadsheet at the centre of how the app stores data. */
+.sheet-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted-light);
+  flex-shrink: 0;
+}
+.sheet-dot.sync-synced { background: var(--green); }
+.sheet-dot.sync-syncing { background: var(--gold); }
+.sheet-dot.sync-pending { background: var(--gold); }
+.sheet-dot.sync-error { background: var(--red); }
+.sheet-dot.sync-off,
+.sheet-dot.sync-unsupported { background: rgba(255,255,255,0.25); }
+
+.menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.09);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: var(--text-light);
+  cursor: pointer;
+}
+.menu-btn:hover { background: rgba(255,255,255,0.15); }
+.menu-lines { display: flex; flex-direction: column; gap: 3px; }
+.menu-lines i {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--gold);
+}
+.menu-label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+
+.drawer-section-title { display: flex; align-items: center; gap: 8px; }
+.section-icon { display: flex; color: var(--gold); }
+.section-icon .icon { width: 17px; height: 17px; }
+.drawer-username { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+
+/* ---------- Home quick add ---------- */
+
+.quick-add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-light);
+  background: linear-gradient(135deg, rgba(224,180,69,0.22), rgba(224,180,69,0.10));
+  border: 1px solid rgba(224,180,69,0.42);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.quick-add:hover { background: linear-gradient(135deg, rgba(224,180,69,0.3), rgba(224,180,69,0.14)); }
+.quick-add:active { transform: scale(0.995); }
+.quick-add-icon { display: flex; color: var(--gold); flex-shrink: 0; }
+.quick-add-icon .icon { width: 24px; height: 24px; }
+.quick-add-text { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.quick-add-text strong { font-size: 15px; line-height: 1.4; }
+.quick-add-text span { font-size: 11.5px; color: var(--muted-light); line-height: 1.5; }
+.quick-add-chevron { color: var(--gold); font-size: 22px; flex-shrink: 0; }
+
+.home-running {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 12.5px;
+  color: var(--muted-light);
+}
+.home-running strong { font-size: 16px; }
+
+.home-empty-card { text-align: left; }
+.home-empty-card h3 { margin: 0 0 6px; font-size: 15px; }
+.home-empty-card .section-sub { margin-bottom: 14px; }
+
+/* A row on Home is read-only, so it should not look tappable. */
+.recent-item-static { cursor: default; }
+.recent-item-static:hover { background: var(--navy-bg-2); }
+
+/* ---------- Category suggestions ---------- */
+
+.category-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.suggestion-chip {
+  border: 1px solid var(--border-soft);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-light);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.suggestion-chip:hover { border-color: var(--gold); background: var(--gold-soft); }
+
+.checkbox-inline {
+  margin-top: 12px !important;
+  font-size: 12.5px !important;
+}
+
+/* Custom categories carry no emoji, so the label needs the icon's space back. */
+.category-custom .cat-name { padding-left: 2px; }
 
 @media (min-width: 480px) {
   body { background: #10151f; }

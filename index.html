@@ -19,14 +19,16 @@
       <h1>สมุดรายรับรายจ่าย</h1>
       <p class="auth-sub">บันทึกเงินเข้า-เงินออกของแต่ละวัน แล้วดูสรุปว่าช่วงนี้เหลือเท่าไร</p>
 
-      <!-- Login -->
+      <!-- Sign in: username is enough. Password is an opt-in extra. -->
       <div id="login-panel" class="auth-panel">
         <form id="login-form">
           <label for="login-username">ชื่อผู้ใช้</label>
           <input id="login-username" type="text" autocomplete="username" placeholder="เช่น ต้นน้ำ, Tin" maxlength="30" required />
 
-          <label for="login-password">รหัสผ่าน</label>
-          <input id="login-password" type="password" autocomplete="current-password" placeholder="รหัสผ่านของกระเป๋านี้" required />
+          <div id="login-password-wrap" hidden>
+            <label for="login-password">รหัสผ่าน</label>
+            <input id="login-password" type="password" autocomplete="current-password" placeholder="บัญชีนี้ตั้งรหัสผ่านไว้" />
+          </div>
 
           <p id="login-error" class="form-error" hidden></p>
           <div id="hint-box" class="hint-box" hidden>
@@ -45,24 +47,36 @@
 
       <!-- Create account / recover -->
       <div id="create-panel" class="auth-panel" hidden>
-        <h2 id="create-panel-title">สร้างบัญชีใหม่</h2>
+        <h2 id="create-panel-title">เริ่มใช้งาน</h2>
         <p id="recovery-note" class="recovery-note" hidden>
-          ตั้งชื่อผู้ใช้และรหัสผ่านใหม่ แล้วเลือกไฟล์ CSV ที่เคยบันทึกไว้ ข้อมูลเดิมจะถูกนำเข้าให้
+          ตั้งชื่อผู้ใช้ใหม่ แล้วเลือกไฟล์ CSV ที่เคยบันทึกไว้ ข้อมูลเดิมจะถูกนำเข้าให้
         </p>
 
         <form id="create-form">
           <label for="create-username">ชื่อผู้ใช้</label>
           <input id="create-username" type="text" autocomplete="username" maxlength="30" required />
+          <p class="field-help">กรอกแค่ชื่อก็เริ่มใช้ได้เลย ไม่ต้องมีรหัสผ่าน</p>
 
-          <label for="create-password">รหัสผ่าน <span class="muted">(อย่างน้อย 4 ตัว)</span></label>
-          <input id="create-password" type="password" autocomplete="new-password" required />
+          <label class="checkbox-row">
+            <input id="use-password" type="checkbox" />
+            <span>ตั้งรหัสผ่านด้วย (ไม่บังคับ)</span>
+          </label>
 
-          <label for="create-password-confirm">ยืนยันรหัสผ่าน</label>
-          <input id="create-password-confirm" type="password" autocomplete="new-password" required />
+          <div id="password-fields" hidden>
+            <p class="field-help">
+              ใช้เมื่อมีหลายคนใช้เครื่องเดียวกัน หรืออยากแยกข้อมูลออกจากคนอื่นในบ้าน
+            </p>
 
-          <label for="create-hint">คำใบ้รหัสผ่าน <span class="muted">(ไม่ใส่ก็ได้)</span></label>
-          <input id="create-hint" type="text" maxlength="60" placeholder="เช่น ชื่อแมวตัวแรก" />
-          <p class="field-help">ไม่มีระบบรีเซ็ตรหัสผ่าน คำใบ้จะแสดงให้เมื่อกรอกรหัสผิดครบ 3 ครั้ง</p>
+            <label for="create-password">รหัสผ่าน <span class="muted">(อย่างน้อย 4 ตัว)</span></label>
+            <input id="create-password" type="password" autocomplete="new-password" />
+
+            <label for="create-password-confirm">ยืนยันรหัสผ่าน</label>
+            <input id="create-password-confirm" type="password" autocomplete="new-password" />
+
+            <label for="create-hint">คำใบ้รหัสผ่าน <span class="muted">(ไม่ใส่ก็ได้)</span></label>
+            <input id="create-hint" type="text" maxlength="60" placeholder="เช่น ชื่อแมวตัวแรก" />
+            <p class="field-help">ไม่มีระบบรีเซ็ตรหัสผ่าน คำใบ้จะแสดงให้เมื่อกรอกรหัสผิดครบ 3 ครั้ง</p>
+          </div>
 
           <label class="checkbox-row">
             <input id="import-on-create" type="checkbox" />
@@ -70,7 +84,7 @@
           </label>
 
           <p id="create-error" class="form-error" hidden></p>
-          <button type="submit" class="btn btn-primary btn-block">สร้างบัญชีและเริ่มใช้งาน</button>
+          <button type="submit" class="btn btn-primary btn-block">เริ่มใช้งาน</button>
         </form>
 
         <div class="auth-links">
@@ -79,10 +93,11 @@
       </div>
 
       <div class="security-note">
-        <strong>รหัสผ่านนี้ใช้แยกผู้ใช้บนเครื่องเดียวกัน ไม่ใช่ระบบความปลอดภัย</strong>
+        <strong>ใช้งานได้เลยโดยไม่ต้องมีรหัสผ่าน</strong>
         <p>
           ข้อมูลถูกเก็บไว้ในเบราว์เซอร์ของเครื่องนี้และในไฟล์ CSV ที่คุณเลือกเท่านั้น
-          ไม่มีการส่งออกไปที่ไหน แต่ไฟล์ไม่ได้เข้ารหัส ใครที่ใช้เครื่องนี้ได้ก็เปิดอ่านผ่าน Excel ได้
+          ไม่มีการส่งออกไปที่ไหน รหัสผ่านเป็นตัวเลือกเสริมสำหรับแยกผู้ใช้บนเครื่องเดียวกัน
+          ไม่ใช่ระบบความปลอดภัย เพราะไฟล์ไม่ได้เข้ารหัส
         </p>
       </div>
     </div>
@@ -111,7 +126,13 @@
           <div id="wallet-count" class="wallet-count muted"></div>
         </div>
       </div>
-      <button id="username-chip" class="username-chip" type="button"></button>
+      <div class="header-right">
+        <span id="header-sheet-dot" class="sheet-dot" title="สถานะไฟล์ Sheet"></span>
+        <button id="menu-btn" class="menu-btn" type="button" aria-label="เปิดเมนู">
+          <span class="menu-lines" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="menu-label">MENU</span>
+        </button>
+      </div>
     </header>
 
     <div id="sync-banner" class="sync-banner" hidden>
@@ -127,42 +148,81 @@
           <p id="home-date" class="home-date"></p>
         </div>
 
-        <div class="home-card">
-          <div class="home-card-head">
-            <h3>ภาพรวมเดือนนี้</h3>
-            <span id="home-month-label" class="muted small"></span>
-          </div>
-          <div class="home-month-grid">
-            <div class="home-stat">
-              <span class="home-stat-label">รายรับ</span>
-              <span id="home-month-income" class="home-stat-value income">฿0</span>
-            </div>
-            <div class="home-stat">
-              <span class="home-stat-label">รายจ่าย</span>
-              <span id="home-month-expense" class="home-stat-value expense">฿0</span>
-            </div>
-            <div class="home-stat">
-              <span class="home-stat-label">คงเหลือ</span>
-              <span id="home-month-balance" class="home-stat-value balance">฿0</span>
-            </div>
-          </div>
+        <!-- Shown when the account has no wallet at all, for instance after
+             importing a file that carried none. -->
+        <div id="home-no-wallet" class="home-card home-empty-card" hidden>
+          <h3>ยังไม่มีกระเป๋า</h3>
+          <p class="section-sub">
+            ต้องมีกระเป๋าอย่างน้อยหนึ่งใบก่อนถึงจะบันทึกรายการได้
+            ถ้าเพิ่งนำเข้าไฟล์แล้วเจอหน้านี้ แปลว่าไฟล์นั้นไม่มีข้อมูลกระเป๋าติดมาด้วย
+          </p>
+          <button id="home-create-wallet-btn" type="button" class="btn btn-primary btn-block">
+            + สร้างกระเป๋า
+          </button>
         </div>
 
-        <div class="home-card">
-          <div class="home-card-head">
-            <h3>สถานะงบประมาณ</h3>
-          </div>
-          <div id="home-budget-body" class="home-budget-body"></div>
-        </div>
+        <div id="home-main">
+          <button id="home-quick-add" type="button" class="quick-add">
+            <span class="quick-add-icon" data-icon="entry"></span>
+            <span class="quick-add-text">
+              <strong>บันทึกด่วน</strong>
+              <span>จดรายรับหรือรายจ่ายภายในไม่กี่วินาที</span>
+            </span>
+            <span class="quick-add-chevron">›</span>
+          </button>
 
-        <div class="home-section-title">ฟีเจอร์ในแอปนี้</div>
-        <div id="home-features" class="home-features"></div>
-
-        <div class="home-card">
-          <div class="home-card-head">
-            <h3>ข้อมูลผู้ใช้</h3>
+          <div class="home-card">
+            <div class="home-card-head">
+              <h3>ภาพรวมเดือนนี้</h3>
+              <span id="home-month-label" class="muted small"></span>
+            </div>
+            <div class="home-month-grid">
+              <div class="home-stat">
+                <span class="home-stat-label">รายรับ</span>
+                <span id="home-month-income" class="home-stat-value income">฿0</span>
+              </div>
+              <div class="home-stat">
+                <span class="home-stat-label">รายจ่าย</span>
+                <span id="home-month-expense" class="home-stat-value expense">฿0</span>
+              </div>
+              <div class="home-stat">
+                <span class="home-stat-label">คงเหลือเดือนนี้</span>
+                <span id="home-month-balance" class="home-stat-value balance">฿0</span>
+              </div>
+            </div>
+            <div class="home-running">
+              <span>ยอดคงเหลือสะสมทั้งหมด</span>
+              <strong id="home-running-balance" class="home-stat-value balance">฿0</strong>
+            </div>
           </div>
-          <div id="home-account-rows" class="account-rows"></div>
+
+          <div class="home-card">
+            <div class="home-card-head">
+              <h3>รายการล่าสุด</h3>
+              <button id="home-recent-more" type="button" class="home-budget-more" hidden>ดูทั้งหมด</button>
+            </div>
+            <div id="home-recent-list" class="recent-list"></div>
+            <div id="home-recent-empty" class="home-budget-empty" hidden>
+              ยังไม่มีรายการ กดบันทึกด่วนด้านบนเพื่อเริ่ม
+            </div>
+          </div>
+
+          <div class="home-card">
+            <div class="home-card-head">
+              <h3>สถานะงบประมาณ</h3>
+            </div>
+            <div id="home-budget-body" class="home-budget-body"></div>
+          </div>
+
+          <div class="home-section-title">ฟีเจอร์ในแอปนี้</div>
+          <div id="home-features" class="home-features"></div>
+
+          <div class="home-card">
+            <div class="home-card-head">
+              <h3>ข้อมูลผู้ใช้</h3>
+            </div>
+            <div id="home-account-rows" class="account-rows"></div>
+          </div>
         </div>
       </section>
 
@@ -189,8 +249,13 @@
           <div id="category-grid" class="category-grid"></div>
 
           <div id="custom-category-wrap" class="custom-category-wrap" hidden>
-            <input id="custom-category-input" type="text" class="text-input" maxlength="40" placeholder="พิมพ์ชื่อหมวดหมู่ เช่น หนังสือ" />
-            <p class="field-help">หมวดที่พิมพ์จะถูกจำไว้เป็นปุ่มลัดในครั้งต่อไป</p>
+            <input id="custom-category-input" type="text" class="text-input" maxlength="40" placeholder="พิมพ์ชื่อหมวดหมู่ เช่น น้ำมัน" autocomplete="off" />
+            <div id="category-suggestions" class="category-suggestions" hidden></div>
+            <label class="checkbox-row checkbox-inline">
+              <input id="save-as-category" type="checkbox" checked />
+              <span>บันทึกเป็นหมวดใหม่</span>
+            </label>
+            <p class="field-help">ถ้าติ๊กไว้ หมวดนี้จะกลายเป็นปุ่มลัดให้กดได้เลยในครั้งต่อไป</p>
           </div>
 
           <div class="field-label">รายละเอียด <span class="muted">(ไม่ใส่ก็ได้)</span></div>
@@ -363,33 +428,26 @@
     </nav>
   </div>
 
-  <!-- Settings drawer: wallets and file -->
+  <!-- MENU: sheet first, then account and wallets -->
   <div id="drawer" class="drawer-overlay" hidden>
     <div class="drawer-card">
       <div class="drawer-head">
-        <h3>กระเป๋าและไฟล์ข้อมูล</h3>
+        <h3>MENU</h3>
         <button id="drawer-close" type="button" class="icon-btn" aria-label="ปิด">✕</button>
       </div>
 
       <div class="drawer-section">
-        <div class="drawer-section-title">กระเป๋าของฉัน</div>
-        <div id="wallet-list" class="wallet-list"></div>
-        <div class="drawer-actions">
-          <button id="add-wallet-btn" type="button" class="btn btn-secondary btn-small">+ สร้างกระเป๋า</button>
-          <button id="rename-wallet-btn" type="button" class="btn btn-secondary btn-small">เปลี่ยนชื่อ</button>
-          <button id="delete-wallet-btn" type="button" class="btn btn-danger btn-small">ลบกระเป๋านี้</button>
+        <div class="drawer-section-title">
+          <span data-icon="file" class="section-icon"></span>
+          ไฟล์ Sheet
         </div>
-      </div>
-
-      <div class="drawer-section">
-        <div class="drawer-section-title">ไฟล์ข้อมูล (CSV)</div>
         <div id="sync-status" class="sync-status"></div>
         <p id="file-unsupported-note" class="field-help" hidden>
           เบราว์เซอร์นี้บันทึกลงไฟล์อัตโนมัติไม่ได้ (รองรับเฉพาะ Chrome และ Edge บนคอมพิวเตอร์)
           ใช้ปุ่มดาวน์โหลดและนำเข้าแทนได้
         </p>
         <div class="drawer-actions">
-          <button id="connect-file-btn" type="button" class="btn btn-secondary btn-small">เชื่อมไฟล์</button>
+          <button id="connect-file-btn" type="button" class="btn btn-primary btn-small">เชื่อมไฟล์ Sheet</button>
           <button id="export-btn" type="button" class="btn btn-secondary btn-small">ดาวน์โหลด</button>
           <button id="import-btn" type="button" class="btn btn-secondary btn-small">นำเข้า</button>
         </div>
@@ -400,6 +458,24 @@
       </div>
 
       <div class="drawer-section">
+        <div class="drawer-section-title">
+          <span data-icon="wallet" class="section-icon"></span>
+          กระเป๋าของฉัน
+        </div>
+        <div id="wallet-list" class="wallet-list"></div>
+        <div class="drawer-actions">
+          <button id="add-wallet-btn" type="button" class="btn btn-secondary btn-small">+ สร้างกระเป๋า</button>
+          <button id="rename-wallet-btn" type="button" class="btn btn-secondary btn-small">เปลี่ยนชื่อ</button>
+          <button id="delete-wallet-btn" type="button" class="btn btn-danger btn-small">ลบกระเป๋านี้</button>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-title">
+          <span data-icon="home" class="section-icon"></span>
+          ผู้ใช้
+        </div>
+        <div id="drawer-username" class="drawer-username"></div>
         <button id="logout-btn" type="button" class="btn btn-block btn-secondary">ออกจากระบบ</button>
       </div>
     </div>

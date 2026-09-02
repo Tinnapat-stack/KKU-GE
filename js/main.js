@@ -23,6 +23,7 @@ import { renderIcons } from './icons.js';
 import { initHomeBackground, playHomeBackground, stopHomeBackground } from './homebg.js';
 import * as filesync from './filesync.js';
 import { validateName } from './validate.js';
+import { showToast } from './toast.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -62,25 +63,20 @@ function enterApp(account, preferredWalletId) {
   purgeTombstones(account.id);
   const rehomed = rehomeOrphans(account.id);
 
-  let wallets = getWallets(account.id);
-  if (wallets.length === 0) {
-    addWallet(account.id, 'กระเป๋าหลัก');
-    wallets = getWallets(account.id);
-  }
-
+  const wallets = getWallets(account.id);
   const preferred = wallets.find((w) => w.id === preferredWalletId);
-  ctx.walletId = preferred ? preferred.id : wallets[0].id;
+  ctx.walletId = preferred ? preferred.id : wallets.length ? wallets[0].id : null;
   setSession(ctx.accountId, ctx.walletId);
 
   $('auth').hidden = true;
   $('app').hidden = false;
-  $('username-chip').textContent = account.username;
+  $('drawer-username').textContent = account.username;
 
   if (!pagesReady) {
     initEntry(ctx);
     initAnalytics(ctx);
     initPlan(ctx);
-    initHome(ctx, showPage);
+    initHome(ctx, showPage, createWallet);
     initShell();
     pagesReady = true;
   }
@@ -118,7 +114,7 @@ function initShell() {
     btn.addEventListener('click', () => showPage(btn.dataset.page));
   });
 
-  $('username-chip').addEventListener('click', () => toggleDrawer(true));
+  $('menu-btn').addEventListener('click', () => toggleDrawer(true));
   $('drawer-close').addEventListener('click', () => toggleDrawer(false));
   $('drawer').addEventListener('click', (e) => {
     if (e.target === $('drawer')) toggleDrawer(false);
@@ -136,6 +132,13 @@ function initShell() {
 }
 
 function showPage(page) {
+  // Without a wallet there is nothing for the other tabs to read or write, so they
+  // send the user back to Home where the wallet can actually be created.
+  if (!ctx.walletId && page !== 'home') {
+    showToast('สร้างกระเป๋าก่อนถึงจะใช้หน้านี้ได้', 'warn');
+    page = 'home';
+  }
+
   currentPage = page;
   // Home draws a photograph behind the chrome, so the header needs its own local
   // scrim there and nowhere else.
@@ -175,7 +178,7 @@ async function logout() {
 function renderWalletBar() {
   const wallets = getWallets(ctx.accountId);
   const active = wallets.find((w) => w.id === ctx.walletId);
-  $('wallet-name').textContent = active ? active.name : '';
+  $('wallet-name').textContent = active ? active.name : 'ยังไม่มีกระเป๋า';
   $('wallet-count').textContent = wallets.length > 1 ? `${wallets.length} กระเป๋า` : '';
 }
 
@@ -205,7 +208,7 @@ async function switchWallet(walletId) {
   toggleDrawer(false);
 }
 
-function createWallet() {
+export function createWallet() {
   const input = prompt('ตั้งชื่อกระเป๋าใหม่', 'กระเป๋าใหม่');
   if (input === null) return;
 
@@ -272,6 +275,8 @@ function renderSyncStatus(status) {
   const el = $('sync-status');
   el.textContent = labels[status] || '';
   el.className = `sync-status sync-${status}`;
+  $('header-sheet-dot').className = `sheet-dot sync-${status}`;
+  $('header-sheet-dot').title = `ไฟล์ Sheet: ${labels[status] || ''}`;
 
   // The banner is only for a file the user already connected, whose permission
   // the browser dropped between sessions. Never show it before they connect one.
