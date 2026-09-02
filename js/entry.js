@@ -8,6 +8,7 @@ import {
   getCustomCategories,
   addCustomCategory,
   deleteCustomCategory,
+  countCategoryUsage,
 } from './storage.js';
 import { scheduleSync } from './filesync.js';
 import { budgetForCategory, budgetStatus } from './budget.js';
@@ -22,7 +23,8 @@ import {
   earliestEntryDateISO,
 } from './validate.js';
 import { formatBaht, formatThaiDate } from './format.js';
-import { CATEGORIES, iconForCategory } from './categories.js';
+import { CATEGORIES } from './categories.js';
+import { transactionRow } from './txrow.js';
 
 const RECENT_LIMIT = 20;
 const $ = (id) => document.getElementById(id);
@@ -48,6 +50,8 @@ export function initEntry(context) {
   $('date-input').min = earliestEntryDateISO();
   $('date-input').max = todayISO();
   $('date-input').value = todayISO();
+
+  $('custom-category-input').addEventListener('input', (e) => renderSuggestions(e.target.value));
 
   $('edit-cancel-btn').addEventListener('click', closeEditModal);
   $('edit-save-btn').addEventListener('click', saveEdit);
@@ -105,19 +109,18 @@ function renderCategories() {
   }
 
   for (const cat of custom) {
-    const btn = categoryButton('🏷️', cat.name);
+    const btn = categoryButton('', cat.name);
+    btn.classList.add('category-custom');
+
     const remove = document.createElement('span');
     remove.className = 'cat-remove';
     remove.textContent = '×';
     remove.title = 'ลบหมวดหมู่นี้';
     remove.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!confirm(`ลบหมวดหมู่ "${cat.name}" ออกจากปุ่มลัด?\nรายการเดิมที่ใช้หมวดนี้จะยังอยู่`)) return;
-      deleteCustomCategory(ctx.accountId, cat.id);
-      if (selectedCategory === cat.name) selectedCategory = null;
-      scheduleSync(ctx.accountId);
-      renderCategories();
+      removeCustomCategory(cat);
     });
+
     btn.appendChild(remove);
     grid.appendChild(btn);
   }
@@ -133,7 +136,9 @@ function categoryButton(icon, name) {
     btn.classList.add('selected');
     if (currentType === 'expense') btn.classList.add('expense-selected');
   }
-  btn.innerHTML = `<span class="cat-icon">${icon}</span><span class="cat-name"></span>`;
+  btn.innerHTML = icon
+    ? `<span class="cat-icon">${icon}</span><span class="cat-name"></span>`
+    : '<span class="cat-name"></span>';
   btn.querySelector('.cat-name').textContent = name;
   btn.addEventListener('click', () => {
     selectedCategory = name;
@@ -142,6 +147,28 @@ function categoryButton(icon, name) {
     renderBudgetHint();
   });
   return btn;
+}
+
+// Deleting a category rewrites the records that used it, so the user is told how
+// many are involved and exactly what will happen to them before confirming.
+function removeCustomCategory(cat) {
+  const used = countCategoryUsage(ctx.accountId, cat.name);
+  const detail = used
+    ? `มี ${used} รายการที่ใช้หมวดนี้อยู่\nรายการเหล่านั้นจะถูกเปลี่ยนเป็น "อื่นๆ (${cat.name})" ไม่หายไปไหน`
+    : 'ยังไม่มีรายการไหนใช้หมวดนี้';
+
+  if (!confirm(`ลบหมวดหมู่ "${cat.name}" ?\n\n${detail}`)) return;
+
+  const { renamedBudgets } = deleteCustomCategory(ctx.accountId, cat.id);
+  if (selectedCategory === cat.name) selectedCategory = null;
+  if (lastSavedCategory === cat.name) lastSavedCategory = null;
+
+  scheduleSync(ctx.accountId);
+  renderEntry();
+
+  if (renamedBudgets) {
+    showToast(`ย้ายงบประมาณของหมวดนี้ไปที่ "อื่นๆ (${cat.name})" แล้ว`, 'info');
+  }
 }
 
 function otherButton() {
@@ -153,19 +180,54 @@ function otherButton() {
     const wrap = $('custom-category-wrap');
     wrap.hidden = false;
     $('custom-category-input').value = '';
+    $('save-as-category').checked = true;
+    renderSuggestions('');
     $('custom-category-input').focus();
   });
   return btn;
 }
 
-// A typed-in category is saved so it becomes a normal button next time.
+// Matches what is being typed against categories the user already saved, so a
+// repeat entry is one tap rather than retyping the whole name.
+function renderSuggestions(query) {
+  const box = $('category-suggestions');
+  const q = query.trim().toLowerCase();
+
+  const matches = getCustomCategories(ctx.accountId, currentType)
+    .map((c) => c.name)
+    .filter((name) => (q ? name.toLowerCase().includes(q) : true))
+    .filter((name) => name.toLowerCase() !== q)
+    .slice(0, 6);
+
+  box.innerHTML = '';
+  box.hidden = matches.length === 0;
+
+  for (const name of matches) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'suggestion-chip';
+    chip.textContent = name;
+    chip.addEventListener('click', () => {
+      selectedCategory = name;
+      $('custom-category-wrap').hidden = true;
+      renderCategories();
+      renderBudgetHint();
+    });
+    box.appendChild(chip);
+  }
+}
+
+// The checkbox decides whether a typed category becomes a permanent button or is
+// used just this once.
 function commitCustomCategory() {
   const check = validateName($('custom-category-input').value, { label: 'ชื่อหมวดหมู่' });
   if (!check.ok) {
     showEntryError(check.error);
     return null;
   }
-  addCustomCategory(ctx.accountId, currentType, check.value);
+  if ($('save-as-category').checked) {
+    addCustomCategory(ctx.accountId, currentType, check.value);
+  }
   selectedCategory = check.value;
   $('custom-category-wrap').hidden = true;
   renderCategories();
@@ -336,53 +398,18 @@ function renderRecent() {
   }
 
   for (const tx of all.slice(0, RECENT_LIMIT)) {
-    list.appendChild(recentItem(tx));
+    list.appendChild(
+      transactionRow(tx, {
+        onOpen: openEditModal,
+        onDelete: (t) => {
+          deleteTransaction(ctx.accountId, t.id);
+          scheduleSync(ctx.accountId);
+          renderEntry();
+          checkBudgetAlerts();
+        },
+      })
+    );
   }
-}
-
-function recentItem(tx) {
-  const item = document.createElement('div');
-  item.className = 'recent-item';
-
-  const icon = document.createElement('div');
-  icon.className = 'recent-icon';
-  icon.textContent = iconFor(tx);
-
-  const info = document.createElement('div');
-  info.className = 'recent-info';
-  const cat = document.createElement('div');
-  cat.className = 'recent-cat';
-  cat.textContent = tx.category;
-  const meta = document.createElement('div');
-  meta.className = 'recent-note';
-  meta.textContent = tx.note ? `${formatThaiDate(tx.date)} · ${tx.note}` : formatThaiDate(tx.date);
-  info.append(cat, meta);
-
-  const amount = document.createElement('div');
-  amount.className = `recent-amount ${tx.type}`;
-  amount.textContent = `${tx.type === 'income' ? '+' : '-'}${formatBaht(tx.amount)}`;
-
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'recent-del';
-  del.textContent = '🗑';
-  del.title = 'ลบรายการ';
-  del.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (!confirm(`ลบรายการ "${tx.category}" ${formatBaht(tx.amount)} ?`)) return;
-    deleteTransaction(ctx.accountId, tx.id);
-    scheduleSync(ctx.accountId);
-    renderEntry();
-    checkBudgetAlerts();
-  });
-
-  item.append(icon, info, amount, del);
-  item.addEventListener('click', () => openEditModal(tx));
-  return item;
-}
-
-function iconFor(tx) {
-  return iconForCategory(tx.type, tx.category);
 }
 
 /* ---------- Edit modal ---------- */

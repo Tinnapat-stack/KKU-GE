@@ -48,25 +48,37 @@ export function findAccountsByUsername(username) {
   return getAccounts().filter((a) => a.username.toLowerCase() === target);
 }
 
-export function createAccount({ username, salt, hash, iterations, hint }) {
+// A password is optional. The blueprint calls for no password at all, so username
+// alone is the default path and a password is an opt-in extra for shared machines.
+// Older accounts already carry a hash, so hasPassword derives from it and no data
+// migration is needed.
+export function createAccount({ username, salt, hash, iterations, hint, seedWallet = true }) {
   const accounts = getAccounts();
   const stamp = now();
   const account = {
     id: uid(),
     username: username.trim(),
-    salt,
-    hash,
-    iterations,
+    salt: salt || '',
+    hash: hash || '',
+    iterations: iterations || 0,
     hint: (hint || '').trim(),
     createdAt: stamp,
   };
   accounts.push(account);
   writeJSON(KEY_ACCOUNTS, accounts);
 
-  const wallet = { id: uid(), name: 'กระเป๋าหลัก', createdAt: stamp, updatedAt: stamp };
-  writeJSON(dataKey(account.id), { ...EMPTY_DATA, wallets: [wallet] });
+  // Importing a file brings its own wallets, so seeding one here would leave the
+  // account with a spare empty wallet it never asked for.
+  const wallets = seedWallet
+    ? [{ id: uid(), name: 'กระเป๋าหลัก', createdAt: stamp, updatedAt: stamp }]
+    : [];
+  writeJSON(dataKey(account.id), { ...EMPTY_DATA, wallets });
 
-  return { account, wallet };
+  return { account, wallet: wallets[0] || null };
+}
+
+export function accountHasPassword(account) {
+  return !!(account && account.hash);
 }
 
 export function getAccountById(id) {
@@ -270,13 +282,44 @@ export function addCustomCategory(accountId, kind, name) {
   return record;
 }
 
+// How many live transactions still use this category, so the confirm prompt can
+// say what is about to change.
+export function countCategoryUsage(accountId, name) {
+  return alive(getData(accountId).transactions).filter((t) => t.category === name).length;
+}
+
+// Deleting a category must not leave old records meaningless, so every transaction
+// and budget that used it is rewritten from "น้ำมัน" to "อื่นๆ (น้ำมัน)". The history
+// keeps its detail and the budget keeps tracking instead of silently vanishing.
 export function deleteCustomCategory(accountId, id) {
   const data = getData(accountId);
   const stamp = now();
+  const target = data.categories.find((c) => c.id === id);
+  if (!target) return { renamedTransactions: 0, renamedBudgets: 0 };
+
+  const from = target.name;
+  const to = `อื่นๆ (${from})`;
+  let renamedTransactions = 0;
+  let renamedBudgets = 0;
+
   data.categories = data.categories.map((c) =>
     c.id === id ? { ...c, deletedAt: stamp, updatedAt: stamp } : c
   );
+
+  data.transactions = data.transactions.map((t) => {
+    if (t.deletedAt || t.category !== from) return t;
+    renamedTransactions++;
+    return { ...t, category: to, updatedAt: stamp };
+  });
+
+  data.budgets = data.budgets.map((b) => {
+    if (b.deletedAt || b.category !== from) return b;
+    renamedBudgets++;
+    return { ...b, category: to, updatedAt: stamp };
+  });
+
   saveData(accountId, data);
+  return { renamedTransactions, renamedBudgets };
 }
 
 /* ---------- Budgets ---------- */

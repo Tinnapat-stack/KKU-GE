@@ -1,28 +1,23 @@
-// Home background animation: money falls from above and settles into a slow
-// drift, while golden light eases in as though coming through several small
-// openings overhead.
+// Home background animation: money falls from above and settles into a slow drift,
+// while the photograph's own golden rays come up from dark.
 //
-// The photograph underneath cannot be animated, since it is one flat layer. What
-// moves is drawn here on a canvas above it, which also keeps the moving elements
-// crisp regardless of the photograph's resolution.
+// The light is not drawn. An earlier version stacked canvas beams, a light-ray
+// image and a sparkle layer over the photo, and the result read as messy rather
+// than lit: each beam's radial gradient was clipped by the rectangle it was drawn
+// into while still carrying visible alpha, leaving hard vertical seams that the
+// `lighter` composite then accumulated, and three light sources with different
+// directions and timings fought each other. The photograph already contains rays,
+// so ramping its own brightness delivers "the light comes on" honestly, with no
+// seams and no banding.
 
 const FULL_MS = 3000;   // first visit of a session
 const SHORT_MS = 1200;  // every visit after that
 const MAX_DPR = 2;
 
-// Light through openings, not one spotlight: several narrow beams across the top.
-const BEAMS = [
-  { x: 0.18, spread: 0.16, strength: 0.30 },
-  { x: 0.34, spread: 0.10, strength: 0.22 },
-  { x: 0.52, spread: 0.20, strength: 0.34 },
-  { x: 0.71, spread: 0.12, strength: 0.24 },
-  { x: 0.87, spread: 0.15, strength: 0.20 },
-];
-
 let canvas = null;
 let ctx = null;
 let sparkleEl = null;
-let rayEl = null;
+let photoEl = null;
 let particles = [];
 let rafId = null;
 let startTime = 0;
@@ -124,29 +119,8 @@ function drawCoin(c, p) {
   c.stroke();
 }
 
-function drawLight(c, w, h, progress) {
-  for (const beam of BEAMS) {
-    const cx = beam.x * w;
-    const radius = h * (0.75 + beam.spread);
-    const grad = c.createRadialGradient(cx, -h * 0.12, 0, cx, -h * 0.12, radius);
-    const peak = beam.strength * progress;
-
-    grad.addColorStop(0, `rgba(255,214,130,${peak})`);
-    grad.addColorStop(0.45, `rgba(233,183,86,${peak * 0.35})`);
-    grad.addColorStop(1, 'rgba(214,163,60,0)');
-
-    c.fillStyle = grad;
-    c.fillRect(cx - w * beam.spread * 2.4, 0, w * beam.spread * 4.8, h);
-  }
-}
-
-function draw(w, h, progress) {
+function draw(w, h) {
   ctx.clearRect(0, 0, w, h);
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  drawLight(ctx, w, h, progress);
-  ctx.restore();
 
   for (const p of particles) {
     ctx.save();
@@ -183,10 +157,8 @@ function step(now) {
     if (p.y > h + 60) p.y = -60;
   }
 
-  draw(w, h, progress);
-
-  if (sparkleEl) sparkleEl.style.opacity = String(0.5 * progress);
-  if (rayEl) rayEl.style.opacity = String(0.32 * progress);
+  draw(w, h);
+  applyLight(progress);
 
   if (t < 1) {
     rafId = requestAnimationFrame(step);
@@ -198,15 +170,25 @@ function step(now) {
   }
 }
 
+// The photograph starts dark and comes up, so its own rays are what brighten.
+const PHOTO_MIN_BRIGHTNESS = 0.42;
+
+function applyLight(progress) {
+  if (photoEl) {
+    const brightness = PHOTO_MIN_BRIGHTNESS + (1 - PHOTO_MIN_BRIGHTNESS) * progress;
+    photoEl.style.filter = `blur(2px) brightness(${brightness.toFixed(3)})`;
+  }
+  if (sparkleEl) sparkleEl.style.opacity = String(0.42 * progress);
+}
+
 function renderFinalFrame() {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
   for (const p of particles) {
     p.y = rand(0.05 * h, 0.95 * h);
   }
-  draw(w, h, 1);
-  if (sparkleEl) sparkleEl.style.opacity = '0.5';
-  if (rayEl) rayEl.style.opacity = '0.32';
+  draw(w, h);
+  applyLight(1);
 }
 
 /* ---------- Public API ---------- */
@@ -214,7 +196,7 @@ function renderFinalFrame() {
 export function initHomeBackground() {
   canvas = document.getElementById('home-canvas');
   sparkleEl = document.getElementById('home-sparkle');
-  rayEl = document.getElementById('home-lightray');
+  photoEl = document.querySelector('.home-photo');
   if (!canvas) return;
   ctx = canvas.getContext('2d');
 

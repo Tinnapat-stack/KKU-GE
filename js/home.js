@@ -12,17 +12,34 @@ import {
 } from './storage.js';
 import { budgetStatus, monthBounds, LEVEL_LABELS } from './budget.js';
 import { ICONS } from './icons.js';
+import { transactionRow } from './txrow.js';
 import { formatBaht, formatBahtShort, formatThaiDateLong, formatMonthYear } from './format.js';
 import { todayISO, toISODate } from './validate.js';
 
 const $ = (id) => document.getElementById(id);
 
+const RECENT_ON_HOME = 4;
+
 let ctx = null;
 let onNavigate = null;
+let onCreateWallet = null;
 
-export function initHome(context, navigate) {
+export function initHome(context, navigate, createWallet) {
   ctx = context;
   onNavigate = navigate;
+  onCreateWallet = createWallet;
+
+  document.getElementById('home-quick-add').addEventListener('click', () => {
+    if (onNavigate) onNavigate('entry');
+    // Focusing the amount field is what turns the blueprint's "record in three
+    // seconds" claim into something the interface actually delivers.
+    const amount = document.getElementById('amount-input');
+    if (amount) amount.focus();
+  });
+
+  document.getElementById('home-create-wallet-btn').addEventListener('click', () => {
+    if (onCreateWallet) onCreateWallet();
+  });
 }
 
 export function setHomeContext(context) {
@@ -31,7 +48,16 @@ export function setHomeContext(context) {
 
 export function renderHome() {
   renderHero();
+
+  // An account can legitimately have no wallet, for instance after importing a file
+  // that carried none. Rather than papering over it, Home says so and offers a fix.
+  const hasWallet = !!ctx.walletId;
+  document.getElementById('home-no-wallet').hidden = hasWallet;
+  document.getElementById('home-main').hidden = !hasWallet;
+  if (!hasWallet) return;
+
   renderMonthSummary();
+  renderRecent();
   renderBudgetCard();
   renderFeatures();
   renderAccountSummary();
@@ -67,6 +93,31 @@ function renderMonthSummary() {
   const balanceEl = $('home-month-balance');
   balanceEl.textContent = formatBahtShort(balance);
   balanceEl.classList.toggle('negative', balance < 0);
+
+  // The blueprint asks for the running balance, not only this month's, so both are
+  // shown: the month for budgeting and the total for the real position.
+  const all = getTransactions(ctx.accountId, ctx.walletId);
+  const running = all.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
+  const runningEl = $('home-running-balance');
+  runningEl.textContent = formatBahtShort(running);
+  runningEl.classList.toggle('negative', running < 0);
+}
+
+/* ---------- Recent transactions ---------- */
+
+function renderRecent() {
+  const list = $('home-recent-list');
+  const rows = getTransactions(ctx.accountId, ctx.walletId).sort((a, b) =>
+    b.date === a.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)
+  );
+
+  list.innerHTML = '';
+  $('home-recent-empty').hidden = rows.length > 0;
+  $('home-recent-more').hidden = rows.length <= RECENT_ON_HOME;
+
+  for (const tx of rows.slice(0, RECENT_ON_HOME)) {
+    list.appendChild(transactionRow(tx));
+  }
 }
 
 /* ---------- Budget card ---------- */
