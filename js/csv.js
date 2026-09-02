@@ -27,7 +27,7 @@ const COLUMNS = [
   'deleted_at',
 ];
 
-const RECORD_KINDS = new Set(['wallet', 'tx', 'goal', 'category']);
+const RECORD_KINDS = new Set(['wallet', 'tx', 'goal', 'category', 'budget']);
 
 function escapeField(value) {
   const s = value === undefined || value === null ? '' : String(value);
@@ -38,7 +38,7 @@ function row(values) {
   return COLUMNS.map((col) => escapeField(values[col])).join(',');
 }
 
-export function serializeAccount({ wallets, transactions, goals, categories }) {
+export function serializeAccount({ wallets, transactions, goals, categories, budgets }) {
   const lines = [COLUMNS.join(',')];
 
   for (const w of wallets) {
@@ -103,6 +103,21 @@ export function serializeAccount({ wallets, transactions, goals, categories }) {
     );
   }
 
+  for (const b of budgets || []) {
+    lines.push(
+      row({
+        record: 'budget',
+        id: b.id,
+        wallet_id: b.walletId,
+        category: b.category,
+        amount: b.amount,
+        created_at: b.createdAt,
+        updated_at: b.updatedAt,
+        deleted_at: b.deletedAt,
+      })
+    );
+  }
+
   return BOM + lines.join('\r\n') + '\r\n';
 }
 
@@ -163,7 +178,7 @@ function parseAmount(raw) {
   return Math.round(n * 100) / 100;
 }
 
-// Returns { wallets, transactions, goals, categories, skipped } where skipped
+// Returns { wallets, transactions, goals, categories, budgets, skipped } where skipped
 // lists the rows that failed validation, each with its line number and reason.
 // A structurally wrong file throws; a merely dirty file imports what it can.
 export function parseCSV(text) {
@@ -180,7 +195,7 @@ export function parseCSV(text) {
     throw new Error('ไฟล์นี้ไม่ใช่ไฟล์ข้อมูลของ P Smart Wallet 888 (ไม่พบคอลัมน์ record หรือ id)');
   }
 
-  const result = { wallets: [], transactions: [], goals: [], categories: [], skipped: [] };
+  const result = { wallets: [], transactions: [], goals: [], categories: [], budgets: [], skipped: [] };
   const get = (r, col) => (cols[col] === -1 ? '' : (r[cols[col]] ?? '').trim());
   const skip = (line, reason) => result.skipped.push({ line, reason });
 
@@ -275,6 +290,28 @@ export function parseCSV(text) {
       return;
     }
 
+    if (kind === 'budget') {
+      const category = get(r, 'category');
+      const amount = parseAmount(get(r, 'amount'));
+
+      if (!category) {
+        skip(line, 'งบประมาณไม่มีหมวดหมู่');
+        return;
+      }
+      if (amount === null || amount <= 0) {
+        skip(line, `จำนวนเงินงบประมาณไม่ถูกต้อง "${get(r, 'amount')}"`);
+        return;
+      }
+
+      result.budgets.push({
+        ...base,
+        walletId: get(r, 'wallet_id'),
+        category: category.slice(0, LIMITS.NAME_MAX),
+        amount,
+      });
+      return;
+    }
+
     // kind === 'category'
     const name = get(r, 'name');
     const catKind = get(r, 'type');
@@ -293,7 +330,8 @@ export function parseCSV(text) {
     result.wallets.length +
     result.transactions.length +
     result.goals.length +
-    result.categories.length;
+    result.categories.length +
+    result.budgets.length;
 
   if (total === 0) {
     const reason = result.skipped.length

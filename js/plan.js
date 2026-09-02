@@ -1,6 +1,17 @@
 // Plan page: savings goals with progress tracking.
 
-import { getGoals, addGoal, updateGoal, deleteGoal } from './storage.js';
+import {
+  getGoals,
+  addGoal,
+  updateGoal,
+  deleteGoal,
+  setBudget,
+  deleteBudget,
+  getCustomCategories,
+  TOTAL_BUDGET,
+} from './storage.js';
+import { budgetStatus, LEVEL_LABELS } from './budget.js';
+import { EXPENSE_CATEGORY_NAMES } from './categories.js';
 import { scheduleSync } from './filesync.js';
 import { validateAmount, validateName, validateGoalDate, todayISO } from './validate.js';
 import { formatBaht, formatThaiDateLong } from './format.js';
@@ -16,6 +27,10 @@ export function initPlan(context) {
   $('goal-cancel-btn').addEventListener('click', () => toggleForm(false));
   $('goal-save-btn').addEventListener('click', saveGoal);
   $('goal-date-input').min = todayISO();
+
+  $('add-budget-btn').addEventListener('click', () => toggleBudgetForm(true));
+  $('budget-cancel-btn').addEventListener('click', () => toggleBudgetForm(false));
+  $('budget-save-btn').addEventListener('click', saveBudget);
 }
 
 export function setPlanContext(context) {
@@ -72,7 +87,144 @@ function saveGoal() {
   renderPlan();
 }
 
+
+/* ---------- Budgets ---------- */
+// A budget is one recurring monthly ceiling per category, plus an optional ceiling
+// for the wallet as a whole. Rows render riskiest first so the thing about to go
+// wrong is the thing the user sees.
+
+function budgetCategoryOptions() {
+  const custom = getCustomCategories(ctx.accountId, 'expense').map((c) => c.name);
+  return [...EXPENSE_CATEGORY_NAMES, ...custom];
+}
+
+export function renderBudgets() {
+  const list = $('budget-list');
+  if (!list) return;
+
+  const { total, categories } = budgetStatus(ctx.accountId, ctx.walletId);
+  const rows = total ? [total, ...categories] : categories;
+
+  list.innerHTML = '';
+  $('budget-empty').hidden = rows.length > 0;
+
+  for (const row of rows) {
+    list.appendChild(budgetRow(row));
+  }
+}
+
+function budgetRow(row) {
+  const card = document.createElement('div');
+  card.className = `budget-row level-${row.level}${row.isTotal ? ' budget-total' : ''}`;
+
+  const top = document.createElement('div');
+  top.className = 'budget-row-top';
+
+  const name = document.createElement('div');
+  name.className = 'budget-name';
+  name.textContent = row.isTotal ? 'งบรวมทั้งเดือน' : row.category;
+
+  const status = document.createElement('span');
+  status.className = 'budget-level';
+  status.textContent = LEVEL_LABELS[row.level];
+
+  const label = document.createElement('div');
+  label.append(name, status);
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'goal-del';
+  del.textContent = '🗑';
+  del.title = 'ลบงบนี้';
+  del.addEventListener('click', () => {
+    const what = row.isTotal ? 'งบรวมทั้งเดือน' : `งบ${row.category}`;
+    if (!confirm(`ลบ${what}?`)) return;
+    deleteBudget(ctx.accountId, row.id);
+    scheduleSync(ctx.accountId);
+    renderPlan();
+  });
+
+  top.append(label, del);
+
+  const amounts = document.createElement('div');
+  amounts.className = 'budget-amounts';
+  amounts.textContent =
+    row.remaining >= 0
+      ? `ใช้ไป ${formatBaht(row.spent)} จาก ${formatBaht(row.limit)} · เหลือ ${formatBaht(row.remaining)}`
+      : `ใช้ไป ${formatBaht(row.spent)} จาก ${formatBaht(row.limit)} · เกิน ${formatBaht(-row.remaining)}`;
+
+  const track = document.createElement('div');
+  track.className = 'budget-bar-track';
+  const fill = document.createElement('div');
+  fill.className = 'budget-bar-fill';
+  fill.style.width = `${Math.min(100, row.percent)}%`;
+  track.appendChild(fill);
+
+  const pct = document.createElement('div');
+  pct.className = 'budget-pct';
+  pct.textContent = `${Math.round(row.percent)}%`;
+
+  card.append(top, amounts, track, pct);
+  return card;
+}
+
+function toggleBudgetForm(show) {
+  $('budget-form-wrap').hidden = !show;
+  $('add-budget-btn').hidden = show;
+  $('budget-error').hidden = true;
+
+  if (!show) return;
+
+  const select = $('budget-category-select');
+  select.innerHTML = '';
+
+  const totalOpt = document.createElement('option');
+  totalOpt.value = TOTAL_BUDGET;
+  totalOpt.textContent = 'งบรวมทั้งเดือน (ทุกหมวด)';
+  select.appendChild(totalOpt);
+
+  for (const name of budgetCategoryOptions()) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+
+  $('budget-amount-input').value = '';
+  select.focus();
+}
+
+function saveBudget() {
+  const category = $('budget-category-select').value;
+  const check = validateAmount($('budget-amount-input').value, { label: 'จำนวนเงินงบ' });
+
+  if (!check.ok) {
+    const el = $('budget-error');
+    el.textContent = check.error;
+    el.hidden = false;
+    return;
+  }
+
+  // setBudget upserts, so choosing an existing category edits it rather than
+  // stacking a second budget on the same category.
+  setBudget(ctx.accountId, {
+    walletId: ctx.walletId,
+    category,
+    amount: check.value,
+  });
+  scheduleSync(ctx.accountId);
+  toggleBudgetForm(false);
+  renderPlan();
+}
+
+/* ---------- Goals ---------- */
+
 export function renderPlan() {
+  renderBudgets();
+  renderGoals();
+}
+
+function renderGoals() {
   const list = $('goal-list');
   const goals = getGoals(ctx.accountId, ctx.walletId).sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt)

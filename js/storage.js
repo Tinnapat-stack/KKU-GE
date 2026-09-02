@@ -12,7 +12,7 @@ const KEY_SESSION = 'psw_session';
 const dataKey = (accountId) => `psw_data_${accountId}`;
 const dirtyKey = (accountId) => `psw_dirty_${accountId}`;
 
-const EMPTY_DATA = { wallets: [], transactions: [], goals: [], categories: [] };
+const EMPTY_DATA = { wallets: [], transactions: [], goals: [], categories: [], budgets: [] };
 
 export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -123,16 +123,17 @@ export function purgeTombstones(accountId) {
   const keep = (r) => !r.deletedAt || r.deletedAt > cutoffISO;
 
   const data = getData(accountId);
-  const before =
-    data.wallets.length + data.transactions.length + data.goals.length + data.categories.length;
+  const count = (d) =>
+    d.wallets.length + d.transactions.length + d.goals.length + d.categories.length + d.budgets.length;
+  const before = count(data);
 
   data.wallets = data.wallets.filter(keep);
   data.transactions = data.transactions.filter(keep);
   data.goals = data.goals.filter(keep);
   data.categories = data.categories.filter(keep);
+  data.budgets = data.budgets.filter(keep);
 
-  const after =
-    data.wallets.length + data.transactions.length + data.goals.length + data.categories.length;
+  const after = count(data);
   if (after !== before) saveData(accountId, data);
 }
 
@@ -173,6 +174,7 @@ export function deleteWallet(accountId, walletId) {
   data.wallets.filter((w) => w.id === walletId).forEach(kill);
   data.transactions.filter((t) => t.walletId === walletId && !t.deletedAt).forEach(kill);
   data.goals.filter((g) => g.walletId === walletId && !g.deletedAt).forEach(kill);
+  data.budgets.filter((b) => b.walletId === walletId && !b.deletedAt).forEach(kill);
   saveData(accountId, data);
 }
 
@@ -277,6 +279,47 @@ export function deleteCustomCategory(accountId, id) {
   saveData(accountId, data);
 }
 
+/* ---------- Budgets ---------- */
+// A budget is a recurring monthly ceiling for one expense category, or for the
+// wallet as a whole under the TOTAL_BUDGET sentinel. At most one live budget per
+// wallet and category pair, so setting one twice edits rather than duplicates.
+
+export const TOTAL_BUDGET = '__TOTAL__';
+
+export function getBudgets(accountId, walletId) {
+  const list = alive(getData(accountId).budgets);
+  return walletId ? list.filter((b) => b.walletId === walletId) : list;
+}
+
+export function setBudget(accountId, { walletId, category, amount }) {
+  const data = getData(accountId);
+  const stamp = now();
+  const existing = data.budgets.find(
+    (b) => !b.deletedAt && b.walletId === walletId && b.category === category
+  );
+
+  if (existing) {
+    existing.amount = amount;
+    existing.updatedAt = stamp;
+    saveData(accountId, data);
+    return existing;
+  }
+
+  const record = { id: uid(), walletId, category, amount, createdAt: stamp, updatedAt: stamp };
+  data.budgets.push(record);
+  saveData(accountId, data);
+  return record;
+}
+
+export function deleteBudget(accountId, id) {
+  const data = getData(accountId);
+  const stamp = now();
+  data.budgets = data.budgets.map((b) =>
+    b.id === id ? { ...b, deletedAt: stamp, updatedAt: stamp } : b
+  );
+  saveData(accountId, data);
+}
+
 /* ---------- Import merge ---------- */
 
 const stampOf = (r) => r.updatedAt || r.createdAt || '';
@@ -312,11 +355,13 @@ export function previewImport(accountId, imported) {
   const transactions = mergeList(data.transactions, imported.transactions);
   const goals = mergeList(data.goals, imported.goals);
   const categories = mergeList(data.categories, imported.categories || []);
+  const budgets = mergeList(data.budgets, imported.budgets || []);
+  const all = [wallets, transactions, goals, categories, budgets];
 
   return {
-    added: wallets.added + transactions.added + goals.added + categories.added,
-    updated: wallets.updated + transactions.updated + goals.updated + categories.updated,
-    unchanged: wallets.skipped + transactions.skipped + goals.skipped + categories.skipped,
+    added: all.reduce((n, r) => n + r.added, 0),
+    updated: all.reduce((n, r) => n + r.updated, 0),
+    unchanged: all.reduce((n, r) => n + r.skipped, 0),
   };
 }
 
@@ -327,6 +372,7 @@ export function mergeImported(accountId, imported, replace = false) {
       transactions: imported.transactions,
       goals: imported.goals,
       categories: imported.categories || [],
+      budgets: imported.budgets || [],
     });
     return;
   }
@@ -336,15 +382,16 @@ export function mergeImported(accountId, imported, replace = false) {
   data.transactions = mergeList(data.transactions, imported.transactions).list;
   data.goals = mergeList(data.goals, imported.goals).list;
   data.categories = mergeList(data.categories, imported.categories || []).list;
+  data.budgets = mergeList(data.budgets, imported.budgets || []).list;
   saveData(accountId, data);
 }
 
-// Transactions and goals whose wallet is missing would otherwise vanish from the
-// UI, so they are collected into a recovery wallet instead.
+// Records whose wallet is missing would otherwise vanish from the UI, so they are
+// collected into a recovery wallet instead.
 export function rehomeOrphans(accountId) {
   const data = getData(accountId);
   const walletIds = new Set(alive(data.wallets).map((w) => w.id));
-  const orphans = [...data.transactions, ...data.goals].filter(
+  const orphans = [...data.transactions, ...data.goals, ...data.budgets].filter(
     (r) => !r.deletedAt && !walletIds.has(r.walletId)
   );
   if (orphans.length === 0) return 0;

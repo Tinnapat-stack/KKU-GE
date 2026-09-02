@@ -18,6 +18,9 @@ import { initAuth } from './auth.js';
 import { initEntry, setEntryContext, renderEntry } from './entry.js';
 import { initAnalytics, setAnalyticsContext, renderAnalytics } from './analytics.js';
 import { initPlan, setPlanContext, renderPlan } from './plan.js';
+import { initHome, setHomeContext, renderHome } from './home.js';
+import { renderIcons } from './icons.js';
+import { initHomeBackground, playHomeBackground, stopHomeBackground } from './homebg.js';
 import * as filesync from './filesync.js';
 import { validateName } from './validate.js';
 
@@ -25,11 +28,13 @@ const $ = (id) => document.getElementById(id);
 
 const ctx = { accountId: null, walletId: null, username: '' };
 let pagesReady = false;
-let currentPage = 'entry';
+let currentPage = 'home';
 
 /* ---------- Boot ---------- */
 
 function boot() {
+  renderIcons();
+  initHomeBackground();
   initAuth(enterApp);
   filesync.installLifecycleHooks();
   filesync.onStatus(renderSyncStatus);
@@ -75,6 +80,7 @@ function enterApp(account, preferredWalletId) {
     initEntry(ctx);
     initAnalytics(ctx);
     initPlan(ctx);
+    initHome(ctx, showPage);
     initShell();
     pagesReady = true;
   }
@@ -82,6 +88,7 @@ function enterApp(account, preferredWalletId) {
   pushContext();
   renderWalletBar();
   renderAll();
+  showPage('home');
   restoreFileSync();
 
   if (rehomed > 0) {
@@ -94,12 +101,14 @@ function pushContext() {
   setEntryContext(ctx);
   setAnalyticsContext(ctx);
   setPlanContext(ctx);
+  setHomeContext(ctx);
 }
 
 function renderAll() {
   renderEntry();
   renderPlan();
   renderAnalytics();
+  renderHome();
 }
 
 /* ---------- Shell wiring ---------- */
@@ -128,6 +137,9 @@ function initShell() {
 
 function showPage(page) {
   currentPage = page;
+  // Home draws a photograph behind the chrome, so the header needs its own local
+  // scrim there and nowhere else.
+  $('app').classList.toggle('on-home', page === 'home');
   document.querySelectorAll('.page').forEach((el) => {
     el.hidden = el.id !== `page-${page}`;
   });
@@ -136,6 +148,12 @@ function showPage(page) {
   });
 
   // Re-rendering on switch replays the chart animation, per the blueprint.
+  if (page === 'home') {
+    renderHome();
+    playHomeBackground();
+  } else {
+    stopHomeBackground();
+  }
   if (page === 'entry') renderEntry();
   if (page === 'analytics') renderAnalytics();
   if (page === 'plan') renderPlan();
