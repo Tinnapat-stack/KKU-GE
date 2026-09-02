@@ -10,6 +10,7 @@ export const LIMITS = {
   PASSWORD_MIN: 4,
   BACKDATE_DAYS: 60,
   MAX_CUSTOM_CATEGORIES: 12,
+  QUANTITY_MAX: 999,
   TOMBSTONE_DAYS: 90,
 };
 
@@ -97,4 +98,23 @@ export function validateGoalDate(raw) {
   if (!raw) return { ok: true, value: '' };
   if (raw < todayISO()) return { ok: false, error: 'วันที่เป้าหมายต้องไม่เป็นอดีต' };
   return { ok: true, value: raw };
+}
+
+// Quantity multiplies the unit price on the entry form. It is a whole count of
+// things bought, so fractions and zero are rejected rather than rounded.
+export function validateQuantity(raw) {
+  const n = Number(raw);
+  if (raw === '' || raw === null || raw === undefined || !Number.isFinite(n)) {
+    return { ok: false, error: 'กรุณากรอกจำนวน' };
+  }
+  if (!Number.isInteger(n)) {
+    return { ok: false, error: 'จำนวนต้องเป็นเลขจำนวนเต็ม' };
+  }
+  if (n < 1) {
+    return { ok: false, error: 'จำนวนต้องอย่างน้อย 1' };
+  }
+  if (n > LIMITS.QUANTITY_MAX) {
+    return { ok: false, error: `จำนวนมากเกินไป สูงสุด ${LIMITS.QUANTITY_MAX}` };
+  }
+  return { ok: true, value: n };
 }

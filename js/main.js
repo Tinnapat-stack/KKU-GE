@@ -25,6 +25,8 @@ import * as filesync from './filesync.js';
 import { validateName } from './validate.js';
 import { showToast } from './toast.js';
 import { initDocs, openDoc } from './docs.js';
+import { initCats, setCatsContext, openCats } from './cats.js';
+import { APP_VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -78,6 +80,7 @@ function enterApp(account, preferredWalletId) {
     initAnalytics(ctx);
     initPlan(ctx);
     initHome(ctx, showPage, createWallet);
+    initCats(ctx, renderAll);
     initShell();
     pagesReady = true;
   }
@@ -99,6 +102,7 @@ function pushContext() {
   setAnalyticsContext(ctx);
   setPlanContext(ctx);
   setHomeContext(ctx);
+  setCatsContext(ctx);
 }
 
 function renderAll() {
@@ -134,6 +138,12 @@ function initShell() {
   initDocs();
   $('open-guide-btn').addEventListener('click', () => openDoc('guide'));
   $('open-teacher-btn').addEventListener('click', () => openDoc('teacher'));
+  $('open-changelog-btn').addEventListener('click', () => openDoc('changelog'));
+
+  $('open-cats-btn').addEventListener('click', openCats);
+
+  $('version-badge').textContent = APP_VERSION;
+  $('version-badge').addEventListener('click', () => openDoc('changelog'));
 }
 
 function showPage(page) {

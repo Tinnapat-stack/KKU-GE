@@ -29,3 +29,9 @@ export function iconForCategory(type, category) {
   if (found) return found.icon;
   return type === 'income' ? '💰' : '🏷️';
 }
+
+// A stored category record whose name matches a built-in is not a new category:
+// it only carries that built-in's unit cost and pinned state.
+export function isBuiltInCategory(type, name) {
+  return (CATEGORIES[type] || []).some((c) => c.name === name);
+}

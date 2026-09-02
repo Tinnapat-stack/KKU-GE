@@ -7,8 +7,7 @@ import {
   deleteTransaction,
   getCustomCategories,
   addCustomCategory,
-  deleteCustomCategory,
-  countCategoryUsage,
+  getCategoryPrefs,
 } from './storage.js';
 import { scheduleSync } from './filesync.js';
 import { budgetForCategory, budgetStatus } from './budget.js';
@@ -16,15 +15,18 @@ import { showToast, crossedUpward } from './toast.js';
 import { ICONS } from './icons.js';
 import {
   validateAmount,
+  validateQuantity,
   validateEntryDate,
   validateNote,
   validateName,
   todayISO,
   earliestEntryDateISO,
+  LIMITS,
 } from './validate.js';
 import { formatBaht, formatThaiDate } from './format.js';
 import { CATEGORIES } from './categories.js';
 import { transactionRow } from './txrow.js';
+import { confirmDeleteCategory } from './cats.js';
 
 const RECENT_LIMIT = 20;
 const $ = (id) => document.getElementById(id);
@@ -53,6 +55,12 @@ export function initEntry(context) {
 
   $('custom-category-input').addEventListener('input', (e) => renderSuggestions(e.target.value));
 
+  $('qty-minus').addEventListener('click', () => stepQuantity(-1));
+  $('qty-plus').addEventListener('click', () => stepQuantity(1));
+  $('qty-input').addEventListener('input', renderTotal);
+  $('qty-input').addEventListener('blur', normaliseQuantity);
+  $('amount-input').addEventListener('input', renderTotal);
+
   $('edit-cancel-btn').addEventListener('click', closeEditModal);
   $('edit-save-btn').addEventListener('click', saveEdit);
   $('edit-delete-btn').addEventListener('click', deleteFromModal);
@@ -72,6 +80,19 @@ export function renderEntry() {
   renderRecent();
   renderTodayTotal();
   renderBudgetHint();
+  renderTotal();
+}
+
+// Home's pinned chips call this before switching page, so the form is already
+// filled in by the time it appears.
+export function prefillEntry({ type, category }) {
+  setType(type);
+  $('amount-input').value = '';
+  setQuantity(1);
+  selectCategory(category);
+  const amount = $('amount-input');
+  amount.focus();
+  amount.select();
 }
 
 /* ---------- Type toggle ---------- */
@@ -80,6 +101,7 @@ function setType(type) {
   currentType = type;
   selectedCategory = null;
   lastSavedCategory = null;
+  setQuantity(1);
 
   document.querySelectorAll('.toggle-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.type === type);
@@ -89,10 +111,60 @@ function setType(type) {
   $('amount-box').classList.toggle('expense', isExpense);
   $('category-label').textContent = isExpense ? 'ใช้ไปกับอะไร' : 'เงินมาจากไหน';
   $('save-btn').classList.toggle('expense', isExpense);
-  $('save-btn').textContent = isExpense ? '✓ บันทึกรายจ่าย' : '✓ บันทึกรายรับ';
+  renderSaveLabel();
 
   renderCategories();
   renderBudgetHint();
+  renderTotal();
+}
+
+/* ---------- Quantity ---------- */
+// The amount box holds the price of one thing; quantity multiplies it. At the
+// default of one the form behaves exactly as it did before this existed.
+
+function currentQuantity() {
+  const n = Math.floor(Number($('qty-input').value));
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, LIMITS.QUANTITY_MAX) : 1;
+}
+
+function setQuantity(value) {
+  $('qty-input').value = String(Math.min(Math.max(1, value), LIMITS.QUANTITY_MAX));
+  renderTotal();
+}
+
+function stepQuantity(delta) {
+  setQuantity(currentQuantity() + delta);
+}
+
+// Typing lets any text sit in the box while the user works; leaving it puts a
+// usable number back so the form is never in a state it cannot save.
+function normaliseQuantity() {
+  setQuantity(currentQuantity());
+}
+
+function entryTotal() {
+  const unit = Number($('amount-input').value);
+  if (!Number.isFinite(unit)) return null;
+  return Math.round(unit * currentQuantity() * 100) / 100;
+}
+
+// The multiplication is only spelled out when it actually changes the number.
+function renderTotal() {
+  const el = $('qty-total');
+  const qty = currentQuantity();
+  const unit = Number($('amount-input').value);
+  const show = qty > 1 && Number.isFinite(unit) && unit > 0;
+
+  el.hidden = !show;
+  el.textContent = show ? `${formatBaht(unit)} × ${qty} = ${formatBaht(entryTotal())}` : '';
+  renderSaveLabel();
+}
+
+function renderSaveLabel() {
+  const base = currentType === 'expense' ? '✓ บันทึกรายจ่าย' : '✓ บันทึกรายรับ';
+  const total = entryTotal();
+  const show = currentQuantity() > 1 && total !== null && total > 0;
+  $('save-btn').textContent = show ? `${base} ${formatBaht(total)}` : base;
 }
 
 /* ---------- Categories ---------- */
@@ -140,35 +212,41 @@ function categoryButton(icon, name) {
     ? `<span class="cat-icon">${icon}</span><span class="cat-name"></span>`
     : '<span class="cat-name"></span>';
   btn.querySelector('.cat-name').textContent = name;
-  btn.addEventListener('click', () => {
-    selectedCategory = name;
-    $('custom-category-wrap').hidden = true;
-    renderCategories();
-    renderBudgetHint();
-  });
+
+  // A category with a unit cost says so on its button, so the number that lands in
+  // the amount box is never a surprise.
+  const cost = (getCategoryPrefs(ctx.accountId, currentType).get(name) || {}).cost || 0;
+  if (cost > 0) {
+    btn.classList.add('has-cost');
+    const tag = document.createElement('span');
+    tag.className = 'cat-cost';
+    tag.textContent = formatBaht(cost);
+    btn.appendChild(tag);
+  }
+
+  btn.addEventListener('click', () => selectCategory(name));
   return btn;
 }
 
-// Deleting a category rewrites the records that used it, so the user is told how
-// many are involved and exactly what will happen to them before confirming.
+// Choosing a category fills in its unit cost when one is set. Typing over the
+// number is still allowed: the cost is a starting point, not a lock.
+function selectCategory(name) {
+  selectedCategory = name;
+  $('custom-category-wrap').hidden = true;
+
+  const cost = (getCategoryPrefs(ctx.accountId, currentType).get(name) || {}).cost || 0;
+  if (cost > 0) $('amount-input').value = String(cost);
+
+  renderCategories();
+  renderBudgetHint();
+  renderTotal();
+}
+
 function removeCustomCategory(cat) {
-  const used = countCategoryUsage(ctx.accountId, cat.name);
-  const detail = used
-    ? `มี ${used} รายการที่ใช้หมวดนี้อยู่\nรายการเหล่านั้นจะถูกเปลี่ยนเป็น "อื่นๆ (${cat.name})" ไม่หายไปไหน`
-    : 'ยังไม่มีรายการไหนใช้หมวดนี้';
-
-  if (!confirm(`ลบหมวดหมู่ "${cat.name}" ?\n\n${detail}`)) return;
-
-  const { renamedBudgets } = deleteCustomCategory(ctx.accountId, cat.id);
+  if (!confirmDeleteCategory(ctx.accountId, cat)) return;
   if (selectedCategory === cat.name) selectedCategory = null;
   if (lastSavedCategory === cat.name) lastSavedCategory = null;
-
-  scheduleSync(ctx.accountId);
   renderEntry();
-
-  if (renamedBudgets) {
-    showToast(`ย้ายงบประมาณของหมวดนี้ไปที่ "อื่นๆ (${cat.name})" แล้ว`, 'info');
-  }
 }
 
 function otherButton() {
@@ -207,12 +285,7 @@ function renderSuggestions(query) {
     chip.type = 'button';
     chip.className = 'suggestion-chip';
     chip.textContent = name;
-    chip.addEventListener('click', () => {
-      selectedCategory = name;
-      $('custom-category-wrap').hidden = true;
-      renderCategories();
-      renderBudgetHint();
-    });
+    chip.addEventListener('click', () => selectCategory(name));
     box.appendChild(chip);
   }
 }
@@ -228,10 +301,7 @@ function commitCustomCategory() {
   if ($('save-as-category').checked) {
     addCustomCategory(ctx.accountId, currentType, check.value);
   }
-  selectedCategory = check.value;
-  $('custom-category-wrap').hidden = true;
-  renderCategories();
-  renderBudgetHint();
+  selectCategory(check.value);
   return check.value;
 }
 
@@ -314,7 +384,21 @@ function saveEntry() {
     if (!commitCustomCategory()) return;
   }
 
-  const amountCheck = validateAmount($('amount-input').value);
+  const unitCheck = validateAmount($('amount-input').value, { label: 'ราคาต่อหน่วย' });
+  if (!unitCheck.ok) {
+    showEntryError(unitCheck.error);
+    return;
+  }
+
+  const qtyCheck = validateQuantity($('qty-input').value);
+  if (!qtyCheck.ok) {
+    showEntryError(qtyCheck.error);
+    return;
+  }
+
+  // The stored amount is always the total, so every other screen keeps reading a
+  // single number and none of them had to change.
+  const amountCheck = validateAmount(unitCheck.value * qtyCheck.value);
   if (!amountCheck.ok) {
     showEntryError(amountCheck.error);
     return;
@@ -341,6 +425,7 @@ function saveEntry() {
     walletId: ctx.walletId,
     type: currentType,
     amount: amountCheck.value,
+    quantity: qtyCheck.value,
     category: selectedCategory,
     note: noteCheck.value,
     date: dateCheck.value,
@@ -350,6 +435,7 @@ function saveEntry() {
   $('amount-input').value = '';
   $('note-input').value = '';
   $('date-input').value = todayISO();
+  setQuantity(1);
   lastSavedCategory = currentType === 'expense' ? selectedCategory : null;
   selectedCategory = null;
 
@@ -360,11 +446,10 @@ function saveEntry() {
 
 function flashSaved() {
   const btn = $('save-btn');
-  const original = btn.textContent;
   btn.textContent = '✓ บันทึกแล้ว';
   btn.disabled = true;
   setTimeout(() => {
-    btn.textContent = original;
+    renderSaveLabel();
     btn.disabled = false;
   }, 700);
 }
@@ -417,6 +502,14 @@ function renderRecent() {
 function openEditModal(tx) {
   editingId = tx.id;
   $('edit-amount-input').value = tx.amount;
+
+  // Quantity is shown but not editable here: changing it would raise the question
+  // of whether the total follows, and this modal edits the total directly.
+  const qty = tx.quantity || 1;
+  const qtyNote = $('edit-qty-note');
+  qtyNote.hidden = qty <= 1;
+  qtyNote.textContent = qty > 1 ? `บันทึกไว้ ${qty} หน่วย ยอดด้านบนคือยอดรวม` : '';
+
   $('edit-note-input').value = tx.note || '';
   $('edit-date-input').min = earliestEntryDateISO();
   $('edit-date-input').max = todayISO();
