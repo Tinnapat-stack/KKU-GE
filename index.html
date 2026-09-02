@@ -88,6 +88,19 @@
     </div>
   </section>
 
+  <!-- Fixed background stack. Only the Home layers are shown on the Home page;
+       the texture layer is the quiet backdrop for every other page. -->
+  <div id="backdrop" class="backdrop" aria-hidden="true">
+    <div class="backdrop-texture"></div>
+    <div id="home-layers" class="home-layers" hidden>
+      <div class="home-photo"></div>
+      <div class="home-scrim"></div>
+      <div id="home-lightray" class="home-lightray"></div>
+      <canvas id="home-canvas" class="home-canvas"></canvas>
+      <div id="home-sparkle" class="home-sparkle"></div>
+    </div>
+  </div>
+
   <!-- Main App -->
   <div id="app" class="app" hidden>
     <header class="app-header">
@@ -109,12 +122,9 @@
     <main id="pages">
       <!-- Home Page -->
       <section id="page-home" class="page">
-        <div class="home-hero">
-          <div class="home-hero-scrim"></div>
-          <div class="home-hero-body">
-            <h2 id="home-greeting"></h2>
-            <p id="home-date" class="home-date"></p>
-          </div>
+        <div class="home-intro">
+          <h2 id="home-greeting"></h2>
+          <p id="home-date" class="home-date"></p>
         </div>
 
         <div class="home-card">

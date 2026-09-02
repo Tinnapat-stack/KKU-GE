@@ -1,17 +1,28 @@
 :root {
-  --navy-bg: #1b2436;
-  --navy-bg-2: #212c42;
-  --cream: #f8f6ef;
-  --green: #2e9e6d;
-  --green-soft: #e3f3ea;
-  --red: #d9534f;
-  --red-soft: #fbe7e6;
-  --amber: #d8a93a;
-  --text-dark: #22282f;
-  --text-light: #f4f5f7;
-  --muted-light: #9aa5b8;
-  --muted-dark: #8a8f98;
-  --border-soft: #e6e2d6;
+  --navy-bg: #141b29;
+  --navy-bg-2: #1c2536;
+
+  /* Gold is the primary brand colour. Green and red are reserved for money
+     direction and budget level, so they never read as decoration. */
+  --gold: #e0b445;
+  --gold-dim: #b8912f;
+  --gold-soft: rgba(224,180,69,0.16);
+  --amber: var(--gold);
+
+  --green: #35b37e;
+  --green-soft: rgba(53,179,126,0.16);
+  --red: #e05a55;
+  --red-soft: rgba(224,90,85,0.16);
+
+  /* Glass surfaces replace the old cream cards. */
+  --glass: rgba(255,255,255,0.055);
+  --glass-strong: rgba(255,255,255,0.085);
+  --glass-border: rgba(255,255,255,0.11);
+  --glass-solid: #232e42;
+
+  --text-light: #f4f6f9;
+  --muted-light: #a3aec2;
+  --border-soft: rgba(255,255,255,0.12);
   --radius-lg: 22px;
   --radius-md: 14px;
   --radius-sm: 10px;
@@ -49,8 +60,7 @@ button, input { font-family: inherit; }
   line-height: 1.5;
 }
 
-.entry-card .form-error,
-.modal-card .form-error { color: #a3312d; }
+/* Errors now sit on dark glass everywhere, so no light-surface override remains. */
 
 .inline-error { color: #ffb4b1; font-size: 12px; margin-top: 6px; }
 
@@ -61,11 +71,13 @@ button, input { font-family: inherit; }
   margin: 6px 0 0;
 }
 
-.entry-card .field-help { color: var(--muted-dark); }
+
 
 /* ---------- Auth ---------- */
 
 .screen {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -105,11 +117,9 @@ button, input { font-family: inherit; }
 .auth-sub { color: var(--muted-light); font-size: 13.5px; line-height: 1.6; margin: 0 0 20px; }
 
 .auth-panel {
-  background: var(--cream);
   border-radius: var(--radius-lg);
   padding: 22px;
   text-align: left;
-  color: var(--text-dark);
   box-shadow: var(--shadow-card);
 }
 
@@ -117,7 +127,7 @@ button, input { font-family: inherit; }
 
 .auth-panel label {
   display: block;
-  color: var(--text-dark);
+  color: var(--text-light);
   font-size: 13px;
   font-weight: 600;
   margin: 12px 0 6px;
@@ -129,11 +139,12 @@ button, input { font-family: inherit; }
   padding: 12px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
-  background: #fff;
-  color: var(--text-dark);
+  background: rgba(0,0,0,0.22);
+  color: var(--text-light);
   font-size: 15px;
 }
-.auth-panel input:focus { outline: 2px solid var(--green); }
+.auth-panel input::placeholder { color: var(--muted-light); }
+.auth-panel input:focus { outline: 2px solid var(--gold); }
 
 .auth-panel .btn-block { margin-top: 18px; }
 
@@ -171,7 +182,7 @@ button, input { font-family: inherit; }
 .link-btn {
   background: none;
   border: none;
-  color: #8fd3b0;
+  color: var(--gold);
   cursor: pointer;
   font-size: 13px;
   text-decoration: underline;
@@ -189,8 +200,30 @@ button, input { font-family: inherit; }
   color: var(--muted-light);
   line-height: 1.65;
 }
-.security-note strong { color: #e8bf5f; display: block; margin-bottom: 5px; font-size: 12.5px; }
+.security-note strong { color: var(--gold); display: block; margin-bottom: 5px; font-size: 12.5px; }
 .security-note p { margin: 0; }
+
+
+/* Glass panels. backdrop-filter is progressive: where it is unsupported the
+   @supports block below swaps in a solid surface so text never loses its
+   background. */
+.auth-panel,
+.entry-card,
+.modal-card {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  color: var(--text-light);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-panel,
+  .entry-card,
+  .modal-card {
+    background: var(--glass-solid);
+  }
+}
 
 /* ---------- Buttons ---------- */
 
@@ -210,7 +243,12 @@ button, input { font-family: inherit; }
 
 .btn-primary { background: var(--green); color: #fff; }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
-.btn-secondary { background: #eceae0; color: var(--text-dark); }
+.btn-secondary {
+  background: rgba(255,255,255,0.09);
+  color: var(--text-light);
+  border: 1px solid var(--glass-border);
+}
+.btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.14); }
 .btn-danger { background: var(--red); color: #fff; }
 
 .btn-save { background: var(--green); color: #fff; margin-top: 8px; }
@@ -233,10 +271,11 @@ button, input { font-family: inherit; }
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--navy-bg);
+  background: transparent;
 }
 
 .app-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -258,6 +297,7 @@ button, input { font-family: inherit; }
 .wallet-name {
   font-weight: 700;
   font-size: 15px;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.85);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -302,16 +342,14 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
 /* ---------- Entry card ---------- */
 
 .entry-card {
-  background: var(--cream);
   border-radius: var(--radius-lg);
   padding: 18px;
-  color: var(--text-dark);
   box-shadow: var(--shadow-card);
 }
 
 .type-toggle {
   display: flex;
-  background: rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.25);
   border-radius: var(--radius-sm);
   padding: 4px;
   margin-bottom: 16px;
@@ -325,7 +363,7 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  color: var(--muted-dark);
+  color: var(--muted-light);
 }
 .toggle-btn.toggle-income.active { background: var(--green); color: #fff; }
 .toggle-btn.toggle-expense.active { background: var(--red); color: #fff; }
@@ -337,10 +375,14 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   align-items: center;
   gap: 8px;
   background: var(--green-soft);
-  transition: background 0.2s ease;
+  border: 1px solid rgba(53,179,126,0.3);
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
-.amount-box.expense { background: var(--red-soft); }
-.amount-box .currency { font-size: 24px; font-weight: 700; color: var(--muted-dark); }
+.amount-box.expense {
+  background: var(--red-soft);
+  border-color: rgba(224,90,85,0.32);
+}
+.amount-box .currency { font-size: 24px; font-weight: 700; color: var(--muted-light); }
 .amount-box input {
   border: none;
   background: transparent;
@@ -348,12 +390,12 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   font-weight: 700;
   width: 100%;
   text-align: center;
-  color: var(--text-dark);
+  color: var(--text-light);
   min-width: 0;
 }
 .amount-box input:focus { outline: none; }
 
-.field-label { font-size: 13px; font-weight: 700; color: var(--text-dark); margin: 16px 0 8px; }
+.field-label { font-size: 13px; font-weight: 700; color: var(--text-light); margin: 16px 0 8px; }
 
 .category-grid {
   display: grid;
@@ -366,19 +408,28 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   align-items: center;
   gap: 8px;
   border: 1px solid var(--border-soft);
-  background: #fff;
+  background: rgba(255,255,255,0.05);
   border-radius: var(--radius-sm);
   padding: 10px;
   font-size: 12.5px;
   cursor: pointer;
   text-align: left;
-  color: var(--text-dark);
+  color: var(--text-light);
   min-width: 0;
 }
 .category-btn .cat-icon { font-size: 15px; flex-shrink: 0; }
 .category-btn .cat-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.category-btn.selected { border-color: var(--green); background: var(--green-soft); font-weight: 700; }
-.category-btn.selected.expense-selected { border-color: var(--red); background: var(--red-soft); }
+.category-btn.selected {
+  border-color: var(--green);
+  background: rgba(53,179,126,0.22);
+  color: #b7f0d4;
+  font-weight: 700;
+}
+.category-btn.selected.expense-selected {
+  border-color: var(--red);
+  background: rgba(224,90,85,0.22);
+  color: #ffc4c1;
+}
 .category-btn.category-other { border-style: dashed; }
 
 .cat-remove {
@@ -388,7 +439,7 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--muted-dark);
+  background: rgba(255,255,255,0.35);
   color: #fff;
   font-size: 12px;
   line-height: 18px;
@@ -403,11 +454,12 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   padding: 12px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
-  background: #fff;
-  color: var(--text-dark);
+  background: rgba(0,0,0,0.22);
+  color: var(--text-light);
   font-size: 14px;
 }
-.text-input:focus { outline: 2px solid var(--green); }
+.text-input::placeholder { color: var(--muted-light); }
+.text-input:focus { outline: 2px solid var(--gold); }
 
 .recent-header {
   display: flex;
@@ -497,7 +549,7 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   font-weight: 600;
   cursor: pointer;
 }
-.range-tab.active { background: var(--cream); color: var(--text-dark); }
+.range-tab.active { background: var(--gold); color: #241d07; }
 
 .period-nav {
   display: flex;
@@ -669,7 +721,7 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   border-radius: 10px;
 }
 .nav-btn .nav-icon { font-size: 18px; }
-.nav-btn.active { color: #fff; background: rgba(255,255,255,0.06); }
+.nav-btn.active { color: var(--gold); background: var(--gold-soft); }
 
 /* ---------- Drawer ---------- */
 
@@ -733,8 +785,6 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   z-index: 70;
 }
 .modal-card {
-  background: var(--cream);
-  color: var(--text-dark);
   border-radius: var(--radius-lg);
   padding: 20px;
   width: 100%;
@@ -757,18 +807,18 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   font-size: 12.5px;
   line-height: 1.5;
   border-left: 3px solid var(--green);
-  background: rgba(46,158,109,0.12);
-  color: #1f6b4a;
+  background: var(--green-soft);
+  color: #8ce0b6;
 }
 .budget-hint.level-warn {
-  border-left-color: var(--amber);
-  background: rgba(216,169,58,0.16);
-  color: #8a6714;
+  border-left-color: var(--gold);
+  background: var(--gold-soft);
+  color: #f0cd77;
 }
 .budget-hint.level-over {
   border-left-color: var(--red);
-  background: rgba(217,83,79,0.14);
-  color: #a3312d;
+  background: var(--red-soft);
+  color: #ffb1ad;
 }
 
 .plan-section { margin-bottom: 26px; }
@@ -888,40 +938,130 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
 .icon { display: block; width: 22px; height: 22px; }
 
 
-/* ---------- Home ---------- */
 
-.home-hero {
-  position: relative;
-  border-radius: var(--radius-lg);
+/* ---------- Fixed background stack ---------- */
+/* Everything here sits behind the app and never scrolls. The Home layers are
+   toggled with the page so the photograph and its animation cost nothing on the
+   other three tabs. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   overflow: hidden;
-  padding: 26px 18px 22px;
-  margin-bottom: 14px;
-  min-height: 132px;
-  display: flex;
-  align-items: flex-end;
-  /* Swapped for the supplied photograph in phase 2B by changing this one line. */
-  background: var(--home-hero-image, linear-gradient(150deg, #1d2a44 0%, #2a3b5e 45%, #7a5f22 100%));
-  background-size: cover;
-  background-position: center;
+  background: var(--navy-bg);
 }
-.home-hero-scrim {
+
+/* The quiet backdrop for every page: soft gold curves at low opacity over navy. */
+.backdrop-texture {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(15,20,32,0.15) 0%, rgba(15,20,32,0.72) 100%);
+  background: url('../assets/img/texture.jpg') center / cover no-repeat;
+  opacity: 0.28;
+  transition: opacity 0.3s ease;
 }
-.home-hero-body { position: relative; }
-.home-hero-body h2 {
+.backdrop.on-home .backdrop-texture { opacity: 0; }
+
+.home-layers { position: absolute; inset: 0; }
+
+/* Scaled slightly past the edges so the blur has no visible border. The blur is
+   deliberate: the source is small, and softening it reads as depth of field
+   rather than as an upscaled image. */
+.home-photo {
+  position: absolute;
+  inset: -3%;
+  background: url('../assets/img/home-bg.jpg') center / cover no-repeat;
+  filter: blur(2px);
+}
+
+/* The scrim is what guarantees the cards stay legible over the brightest part of
+   the photograph. Contrast comes before atmosphere. */
+.home-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(10,14,22,0.66) 0px,
+      rgba(10,14,22,0.58) 130px,
+      rgba(10,14,22,0) 250px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(10,14,22,0.72) 0%,
+      rgba(10,14,22,0.58) 18%,
+      rgba(10,14,22,0.50) 45%,
+      rgba(10,14,22,0.76) 100%
+    );
+}
+
+/* Photographic light, screen-blended so its black background drops away. The
+   canvas beams give the shape and the timing; this gives them real texture. */
+.home-lightray {
+  position: absolute;
+  inset: -10% -20%;
+  background: url('../assets/img/lightray.jpg') center top / cover no-repeat;
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: rotate(180deg);
+}
+
+.home-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* Pure black in the source drops out under a screen blend, so this JPEG behaves
+   like a transparent sparkle overlay without needing an alpha channel. */
+.home-sparkle {
+  position: absolute;
+  inset: 0;
+  background: url('../assets/img/sparkle.jpg') center / cover no-repeat;
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+/* The app and its content ride above the backdrop. */
+.app { position: relative; z-index: 1; }
+.toast-stack, .drawer-overlay, .modal-overlay { z-index: 60; }
+
+/* ---------- Home ---------- */
+
+.app.on-home .app-header::before,
+.app.on-home .home-intro::before {
+  content: '';
+  position: absolute;
+  inset: -10px -18px -6px;
+  background: linear-gradient(180deg, rgba(8,11,18,0.86) 0%, rgba(8,11,18,0.55) 100%);
+  z-index: -1;
+  pointer-events: none;
+}
+.app.on-home .home-intro::before {
+  background: linear-gradient(180deg, rgba(8,11,18,0.62) 0%, rgba(8,11,18,0.34) 100%);
+}
+
+.home-intro { position: relative; padding: 6px 2px 16px; }
+.home-intro h2 {
   margin: 0 0 4px;
-  font-size: 22px;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  font-size: 23px;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.6);
 }
-.home-date { margin: 0; font-size: 12.5px; color: #cfd6e4; }
+.home-date {
+  margin: 0;
+  font-size: 12.5px;
+  color: #d6dded;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.8);
+}
 
 .home-card {
-  background: var(--navy-bg-2);
+  background: rgba(20,27,41,0.62);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
   border-radius: var(--radius-md);
   padding: 15px;
   margin-bottom: 12px;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .home-card { background: rgba(20,27,41,0.93); }
 }
 .home-card-head {
   display: flex;
@@ -964,7 +1104,7 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
 .home-budget-more {
   background: none;
   border: none;
-  color: #8fd3b0;
+  color: var(--gold);
   font-size: 12.5px;
   text-decoration: underline;
   cursor: pointer;
@@ -976,12 +1116,15 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   font-size: 14.5px;
   font-weight: 700;
   margin: 18px 0 10px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
 }
 
 .home-features { display: flex; flex-direction: column; gap: 10px; }
 .feature-card {
-  background: var(--navy-bg-2);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: rgba(20,27,41,0.62);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
   border-radius: var(--radius-md);
   padding: 14px;
   text-align: left;
@@ -990,7 +1133,7 @@ main#pages { flex: 1; padding: 8px 16px 90px; }
   font-family: inherit;
   transition: border-color 0.15s ease, transform 0.08s ease;
 }
-.feature-card:hover { border-color: rgba(46,158,109,0.5); }
+.feature-card:hover { border-color: rgba(224,180,69,0.45); }
 .feature-card:active { transform: scale(0.995); }
 
 .feature-head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
