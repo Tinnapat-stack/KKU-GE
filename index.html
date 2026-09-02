@@ -92,7 +92,7 @@
   <div id="app" class="app" hidden>
     <header class="app-header">
       <div class="header-left">
-        <span class="logo-badge">💵</span>
+        <span class="logo-badge" data-icon="brand"></span>
         <div class="wallet-info">
           <div id="wallet-name" class="wallet-name"></div>
           <div id="wallet-count" class="wallet-count muted"></div>
@@ -107,8 +107,57 @@
     </div>
 
     <main id="pages">
+      <!-- Home Page -->
+      <section id="page-home" class="page">
+        <div class="home-hero">
+          <div class="home-hero-scrim"></div>
+          <div class="home-hero-body">
+            <h2 id="home-greeting"></h2>
+            <p id="home-date" class="home-date"></p>
+          </div>
+        </div>
+
+        <div class="home-card">
+          <div class="home-card-head">
+            <h3>ภาพรวมเดือนนี้</h3>
+            <span id="home-month-label" class="muted small"></span>
+          </div>
+          <div class="home-month-grid">
+            <div class="home-stat">
+              <span class="home-stat-label">รายรับ</span>
+              <span id="home-month-income" class="home-stat-value income">฿0</span>
+            </div>
+            <div class="home-stat">
+              <span class="home-stat-label">รายจ่าย</span>
+              <span id="home-month-expense" class="home-stat-value expense">฿0</span>
+            </div>
+            <div class="home-stat">
+              <span class="home-stat-label">คงเหลือ</span>
+              <span id="home-month-balance" class="home-stat-value balance">฿0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-card">
+          <div class="home-card-head">
+            <h3>สถานะงบประมาณ</h3>
+          </div>
+          <div id="home-budget-body" class="home-budget-body"></div>
+        </div>
+
+        <div class="home-section-title">ฟีเจอร์ในแอปนี้</div>
+        <div id="home-features" class="home-features"></div>
+
+        <div class="home-card">
+          <div class="home-card-head">
+            <h3>ข้อมูลผู้ใช้</h3>
+          </div>
+          <div id="home-account-rows" class="account-rows"></div>
+        </div>
+      </section>
+
       <!-- Entry Page -->
-      <section id="page-entry" class="page">
+      <section id="page-entry" class="page" hidden>
         <div class="entry-summary">
           วันนี้ใช้ไปแล้ว <strong id="entry-today-spent">฿0.00</strong>
         </div>
@@ -123,6 +172,8 @@
             <span class="currency">฿</span>
             <input id="amount-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" />
           </div>
+
+          <p id="budget-hint" class="budget-hint" hidden></p>
 
           <div class="field-label" id="category-label">เงินมาจากไหน</div>
           <div id="category-grid" class="category-grid"></div>
@@ -153,7 +204,7 @@
       <section id="page-analytics" class="page" hidden>
         <div class="analytics-card">
           <div class="analytics-title-row">
-            <span class="logo-badge small">📔</span>
+            <span class="logo-badge small" data-icon="analytics"></span>
             <h2>สถิติรายรับรายจ่าย</h2>
           </div>
           <p class="analytics-sub">เทียบเงินเข้ากับเงินออกในแต่ละช่วงเวลา</p>
@@ -215,6 +266,43 @@
           <p class="analytics-sub">ตั้งเป้าหมายการออมเงินและติดตามความคืบหน้า</p>
         </div>
 
+        <section class="plan-section">
+          <div class="plan-section-head">
+            <h3>งบประมาณเดือนนี้</h3>
+            <p class="section-sub">ตั้งเพดานการใช้จ่ายรายเดือน แล้วแอปจะเตือนเมื่อใกล้เกิน</p>
+          </div>
+
+          <button id="add-budget-btn" type="button" class="btn btn-block btn-secondary">+ ตั้งงบประมาณ</button>
+
+          <div id="budget-form-wrap" class="budget-form-wrap" hidden>
+            <div class="entry-card">
+              <div class="field-label">หมวดหมู่</div>
+              <select id="budget-category-select" class="text-input"></select>
+
+              <div class="field-label">งบต่อเดือน</div>
+              <div class="amount-box goal-amount">
+                <span class="currency">฿</span>
+                <input id="budget-amount-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" />
+              </div>
+
+              <p id="budget-error" class="form-error" hidden></p>
+              <div class="goal-form-actions">
+                <button id="budget-cancel-btn" type="button" class="btn btn-secondary">ยกเลิก</button>
+                <button id="budget-save-btn" type="button" class="btn btn-primary">บันทึกงบ</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="budget-list" class="budget-list"></div>
+          <div id="budget-empty" class="empty-state" hidden>ยังไม่ได้ตั้งงบประมาณ ลองตั้งงบค่าอาหารดูก่อนก็ได้</div>
+        </section>
+
+        <section class="plan-section">
+          <div class="plan-section-head">
+            <h3>เป้าหมายการออม</h3>
+            <p class="section-sub">ตั้งเป้าหมายแล้วค่อยๆ เก็บเงินเข้าไป</p>
+          </div>
+
         <button id="add-goal-btn" type="button" class="btn btn-block btn-primary">+ สร้างเป้าหมายใหม่</button>
 
         <div id="goal-form-wrap" class="goal-form-wrap" hidden>
@@ -241,20 +329,25 @@
 
         <div id="goal-list" class="goal-list"></div>
         <div id="goal-empty" class="empty-state" hidden>ยังไม่มีเป้าหมาย ลองสร้างเป้าหมายแรกของคุณดูสิ 🎯</div>
+        </section>
       </section>
     </main>
 
     <nav class="bottom-nav">
-      <button type="button" class="nav-btn active" data-page="entry">
-        <span class="nav-icon">💵</span>
+      <button type="button" class="nav-btn active" data-page="home">
+        <span class="nav-icon" data-icon="home"></span>
+        <span>โฮม</span>
+      </button>
+      <button type="button" class="nav-btn" data-page="entry">
+        <span class="nav-icon" data-icon="entry"></span>
         <span>บันทึก</span>
       </button>
       <button type="button" class="nav-btn" data-page="analytics">
-        <span class="nav-icon">📊</span>
+        <span class="nav-icon" data-icon="analytics"></span>
         <span>สถิติ</span>
       </button>
       <button type="button" class="nav-btn" data-page="plan">
-        <span class="nav-icon">🎯</span>
+        <span class="nav-icon" data-icon="plan"></span>
         <span>วางแผน</span>
       </button>
     </nav>

@@ -15,13 +15,19 @@ export const toBuddhistYear = (year) => year + 543;
 
 export function formatBaht(amount) {
   const n = Number(amount) || 0;
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const sign = n < 0 ? '-' : '';
+  const body = Math.abs(n).toLocaleString('th-TH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${sign}฿${body}`;
 }
 
 // Compact form used where space is tight, such as the chart balance.
 export function formatBahtShort(amount) {
   const n = Number(amount) || 0;
-  return `฿${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`;
+  const sign = n < 0 ? '-' : '';
+  return `${sign}฿${Math.abs(n).toLocaleString('th-TH', { maximumFractionDigits: 0 })}`;
 }
 
 export function parseISODate(iso) {

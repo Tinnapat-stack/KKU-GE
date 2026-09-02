@@ -10,6 +10,9 @@ import {
   deleteCustomCategory,
 } from './storage.js';
 import { scheduleSync } from './filesync.js';
+import { budgetForCategory, budgetStatus } from './budget.js';
+import { showToast, crossedUpward } from './toast.js';
+import { ICONS } from './icons.js';
 import {
   validateAmount,
   validateEntryDate,
@@ -19,26 +22,7 @@ import {
   earliestEntryDateISO,
 } from './validate.js';
 import { formatBaht, formatThaiDate } from './format.js';
-
-const CATEGORIES = {
-  income: [
-    { icon: '🏦', name: 'เงินเดือน/ค่าจ้าง' },
-    { icon: '🏠', name: 'เงินจากที่บ้าน' },
-    { icon: '🛍️', name: 'ขายของ' },
-    { icon: '🎁', name: 'รางวัล/โบนัส' },
-    { icon: '💹', name: 'เงินออม/ดอกเบี้ย' },
-  ],
-  expense: [
-    { icon: '🍜', name: 'อาหาร/เครื่องดื่ม' },
-    { icon: '🚌', name: 'เดินทาง' },
-    { icon: '📚', name: 'การเรียน' },
-    { icon: '🛒', name: 'ช้อปปิ้ง' },
-    { icon: '🎬', name: 'บันเทิง' },
-    { icon: '🧾', name: 'บิล/ค่าบริการ' },
-    { icon: '💊', name: 'สุขภาพ' },
-    { icon: '🏡', name: 'ที่พัก' },
-  ],
-};
+import { CATEGORIES, iconForCategory } from './categories.js';
 
 const RECENT_LIMIT = 20;
 const $ = (id) => document.getElementById(id);
@@ -46,6 +30,7 @@ const $ = (id) => document.getElementById(id);
 let ctx = null; // { accountId, walletId }
 let currentType = 'income';
 let selectedCategory = null;
+let lastSavedCategory = null;
 let editingId = null;
 
 export function initEntry(context) {
@@ -82,6 +67,7 @@ export function renderEntry() {
   renderCategories();
   renderRecent();
   renderTodayTotal();
+  renderBudgetHint();
 }
 
 /* ---------- Type toggle ---------- */
@@ -89,6 +75,7 @@ export function renderEntry() {
 function setType(type) {
   currentType = type;
   selectedCategory = null;
+  lastSavedCategory = null;
 
   document.querySelectorAll('.toggle-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.type === type);
@@ -101,6 +88,7 @@ function setType(type) {
   $('save-btn').textContent = isExpense ? '✓ บันทึกรายจ่าย' : '✓ บันทึกรายรับ';
 
   renderCategories();
+  renderBudgetHint();
 }
 
 /* ---------- Categories ---------- */
@@ -151,6 +139,7 @@ function categoryButton(icon, name) {
     selectedCategory = name;
     $('custom-category-wrap').hidden = true;
     renderCategories();
+    renderBudgetHint();
   });
   return btn;
 }
@@ -180,7 +169,71 @@ function commitCustomCategory() {
   selectedCategory = check.value;
   $('custom-category-wrap').hidden = true;
   renderCategories();
+  renderBudgetHint();
   return check.value;
+}
+
+
+/* ---------- Budget hint ---------- */
+// Shown the moment an expense category is picked, while the user can still change
+// their mind. This is the most useful place in the app to surface a budget.
+
+function hideBudgetHint(el) {
+  el.hidden = true;
+  el.textContent = '';
+}
+
+function renderBudgetHint() {
+  const el = $('budget-hint');
+  if (!el) return;
+
+  // After a save the selection clears, but the budget for what was just recorded
+  // is exactly what the user wants to see, so fall back to it.
+  const category = selectedCategory || lastSavedCategory;
+
+  if (currentType !== 'expense' || !category) {
+    hideBudgetHint(el);
+    return;
+  }
+
+  const row = budgetForCategory(ctx.accountId, ctx.walletId, category);
+  if (!row) {
+    hideBudgetHint(el);
+    return;
+  }
+
+  const remaining = Math.max(0, row.remaining);
+  const over = row.remaining < 0;
+  el.className = `budget-hint level-${row.level}`;
+  el.textContent = over
+    ? `งบ${category}เดือนนี้เกินมาแล้ว ${formatBaht(-row.remaining)} (ใช้ ${formatBaht(row.spent)} จาก ${formatBaht(row.limit)})`
+    : `งบ${category}เดือนนี้ เหลือ ${formatBaht(remaining)} จาก ${formatBaht(row.limit)}`;
+  el.hidden = false;
+}
+
+// Raises a toast only when this save pushed a budget up into a higher level.
+function checkBudgetAlerts() {
+  const month = new Date().toISOString().slice(0, 7);
+  const { total, categories } = budgetStatus(ctx.accountId, ctx.walletId);
+  const rows = [...categories, ...(total ? [total] : [])];
+
+  for (const row of rows) {
+    if (row.level === 'safe') {
+      crossedUpward(ctx.accountId, ctx.walletId, row.category, month, row.level);
+      continue;
+    }
+    if (!crossedUpward(ctx.accountId, ctx.walletId, row.category, month, row.level)) continue;
+
+    const name = row.isTotal ? 'งบรวมเดือนนี้' : `งบ${row.category}`;
+    const pct = Math.round(row.percent);
+    showToast(
+      row.level === 'over'
+        ? `${name}เกินแล้ว ใช้ไป ${formatBaht(row.spent)} จาก ${formatBaht(row.limit)} (${pct}%)`
+        : `${name}ใช้ไปแล้ว ${pct}% (${formatBaht(row.spent)} จาก ${formatBaht(row.limit)})`,
+      row.level,
+      { icon: ICONS.alert }
+    );
+  }
 }
 
 /* ---------- Save ---------- */
@@ -235,10 +288,12 @@ function saveEntry() {
   $('amount-input').value = '';
   $('note-input').value = '';
   $('date-input').value = todayISO();
+  lastSavedCategory = currentType === 'expense' ? selectedCategory : null;
   selectedCategory = null;
 
   renderEntry();
   flashSaved();
+  checkBudgetAlerts();
 }
 
 function flashSaved() {
@@ -318,6 +373,7 @@ function recentItem(tx) {
     deleteTransaction(ctx.accountId, tx.id);
     scheduleSync(ctx.accountId);
     renderEntry();
+    checkBudgetAlerts();
   });
 
   item.append(icon, info, amount, del);
@@ -326,9 +382,7 @@ function recentItem(tx) {
 }
 
 function iconFor(tx) {
-  const found = CATEGORIES[tx.type].find((c) => c.name === tx.category);
-  if (found) return found.icon;
-  return tx.type === 'income' ? '💰' : '🏷️';
+  return iconForCategory(tx.type, tx.category);
 }
 
 /* ---------- Edit modal ---------- */
@@ -370,6 +424,7 @@ function saveEdit() {
   scheduleSync(ctx.accountId);
   closeEditModal();
   renderEntry();
+  checkBudgetAlerts();
 }
 
 function deleteFromModal() {
@@ -378,4 +433,5 @@ function deleteFromModal() {
   scheduleSync(ctx.accountId);
   closeEditModal();
   renderEntry();
+  checkBudgetAlerts();
 }
