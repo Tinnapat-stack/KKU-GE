@@ -24,6 +24,7 @@ import { initHomeBackground, playHomeBackground, stopHomeBackground } from './ho
 import * as filesync from './filesync.js';
 import { validateName } from './validate.js';
 import { showToast } from './toast.js';
+import { initDocs, openDoc } from './docs.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -129,6 +130,10 @@ function initShell() {
   $('export-btn').addEventListener('click', () => filesync.downloadCSV(ctx.accountId, ctx.username));
   $('import-btn').addEventListener('click', importFile);
   $('sync-banner-btn').addEventListener('click', regrantPermission);
+
+  initDocs();
+  $('open-guide-btn').addEventListener('click', () => openDoc('guide'));
+  $('open-teacher-btn').addEventListener('click', () => openDoc('teacher'));
 }
 
 function showPage(page) {

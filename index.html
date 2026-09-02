@@ -110,7 +110,6 @@
     <div id="home-layers" class="home-layers" hidden>
       <div class="home-photo"></div>
       <div class="home-scrim"></div>
-      <div id="home-lightray" class="home-lightray"></div>
       <canvas id="home-canvas" class="home-canvas"></canvas>
       <div id="home-sparkle" class="home-sparkle"></div>
     </div>
@@ -472,12 +471,34 @@
 
       <div class="drawer-section">
         <div class="drawer-section-title">
+          <span data-icon="file" class="section-icon"></span>
+          ข้อมูลและคู่มือ
+        </div>
+        <div class="drawer-actions">
+          <button id="open-guide-btn" type="button" class="btn btn-secondary btn-small">คู่มือการใช้งาน</button>
+          <button id="open-teacher-btn" type="button" class="btn btn-secondary btn-small">ข้อมูลสำหรับอาจารย์</button>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-title">
           <span data-icon="home" class="section-icon"></span>
           ผู้ใช้
         </div>
         <div id="drawer-username" class="drawer-username"></div>
         <button id="logout-btn" type="button" class="btn btn-block btn-secondary">ออกจากระบบ</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Reference panels: user guide and notes for the lecturer -->
+  <div id="doc-overlay" class="doc-overlay" hidden>
+    <div class="doc-card">
+      <div class="doc-head">
+        <h3 id="doc-title"></h3>
+        <button id="doc-close" type="button" class="icon-btn" aria-label="ปิด">✕</button>
+      </div>
+      <div id="doc-body" class="doc-body"></div>
     </div>
   </div>
 
