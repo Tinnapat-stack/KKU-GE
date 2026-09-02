@@ -9,10 +9,14 @@ import {
   getBudgets,
   getWallets,
   getAccountById,
+  getPinnedCategories,
 } from './storage.js';
 import { budgetStatus, monthBounds, LEVEL_LABELS } from './budget.js';
 import { ICONS } from './icons.js';
 import { transactionRow } from './txrow.js';
+import { iconForCategory } from './categories.js';
+import { prefillEntry } from './entry.js';
+import { openCats } from './cats.js';
 import { formatBaht, formatBahtShort, formatThaiDateLong, formatMonthYear } from './format.js';
 import { todayISO, toISODate } from './validate.js';
 
@@ -29,10 +33,13 @@ export function initHome(context, navigate, createWallet) {
   onNavigate = navigate;
   onCreateWallet = createWallet;
 
-  document.getElementById('home-quick-add').addEventListener('click', () => {
+  document.getElementById('home-manage-cats').addEventListener('click', openCats);
+  document.getElementById('home-goto-cats').addEventListener('click', openCats);
+
+  // Without a pin there is nothing to tap, so the plain route to the form stays
+  // available rather than disappearing with the old quick-add button.
+  document.getElementById('home-goto-entry').addEventListener('click', () => {
     if (onNavigate) onNavigate('entry');
-    // Focusing the amount field is what turns the blueprint's "record in three
-    // seconds" claim into something the interface actually delivers.
     const amount = document.getElementById('amount-input');
     if (amount) amount.focus();
   });
@@ -56,6 +63,7 @@ export function renderHome() {
   document.getElementById('home-main').hidden = !hasWallet;
   if (!hasWallet) return;
 
+  renderPins();
   renderMonthSummary();
   renderRecent();
   renderBudgetCard();
@@ -101,6 +109,64 @@ function renderMonthSummary() {
   const runningEl = $('home-running-balance');
   runningEl.textContent = formatBahtShort(running);
   runningEl.classList.toggle('negative', running < 0);
+}
+
+/* ---------- Pinned categories ---------- */
+// The blueprint promises a record in three seconds. A pinned category delivers
+// that literally: tapping one opens the entry form with the type, the category and
+// the price already filled in, so only the save is left.
+
+function renderPins() {
+  const pins = getPinnedCategories(ctx.accountId);
+  const empty = pins.length === 0;
+
+  $('home-pins').hidden = empty;
+  $('home-pins-empty').hidden = !empty;
+  $('home-pins-empty-actions').hidden = !empty;
+  if (empty) return;
+
+  for (const kind of ['income', 'expense']) {
+    const row = $(`home-pins-${kind}`);
+    const group = row.closest('.pin-group');
+    const ofKind = pins.filter((p) => p.kind === kind);
+
+    // A group with nothing in it is hidden rather than left as an empty strip.
+    group.hidden = ofKind.length === 0;
+    row.innerHTML = '';
+    for (const pin of ofKind) row.appendChild(pinChip(pin));
+  }
+}
+
+function pinChip({ kind, name, cost }) {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = `pin-chip pin-${kind}`;
+
+  const icon = document.createElement('span');
+  icon.className = 'pin-chip-icon';
+  icon.textContent = iconForCategory(kind, name);
+
+  const label = document.createElement('span');
+  label.className = 'pin-chip-name';
+  label.textContent = name;
+
+  chip.append(icon, label);
+
+  if (cost > 0) {
+    const price = document.createElement('span');
+    price.className = 'pin-chip-cost';
+    price.textContent = formatBaht(cost);
+    chip.appendChild(price);
+  }
+
+  chip.addEventListener('click', () => {
+    // The page has to be visible before the form is filled, or the focus that puts
+    // the cursor in the amount box lands on a hidden field and is dropped.
+    if (onNavigate) onNavigate('entry');
+    prefillEntry({ type: kind, category: name });
+  });
+
+  return chip;
 }
 
 /* ---------- Recent transactions ---------- */

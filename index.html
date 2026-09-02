@@ -161,14 +161,32 @@
         </div>
 
         <div id="home-main">
-          <button id="home-quick-add" type="button" class="quick-add">
-            <span class="quick-add-icon" data-icon="entry"></span>
-            <span class="quick-add-text">
-              <strong>บันทึกด่วน</strong>
-              <span>จดรายรับหรือรายจ่ายภายในไม่กี่วินาที</span>
-            </span>
-            <span class="quick-add-chevron">›</span>
-          </button>
+          <!-- Pinned categories: one tap opens the entry form already filled in. -->
+          <div class="home-card pin-card">
+            <div class="home-card-head">
+              <h3>บันทึกด่วน</h3>
+              <button id="home-manage-cats" type="button" class="home-budget-more">จัดการหมวด</button>
+            </div>
+
+            <div id="home-pins" class="pin-groups">
+              <div class="pin-group" data-kind="income">
+                <span class="pin-group-label">รายรับ</span>
+                <div id="home-pins-income" class="pin-row"></div>
+              </div>
+              <div class="pin-group" data-kind="expense">
+                <span class="pin-group-label">รายจ่าย</span>
+                <div id="home-pins-expense" class="pin-row"></div>
+              </div>
+            </div>
+
+            <div id="home-pins-empty" class="home-budget-empty" hidden>
+              ยังไม่ได้ปักหมุดหมวดไหนไว้ ปักหมุดหมวดที่ใช้บ่อยแล้วกดครั้งเดียวก็บันทึกได้เลย
+            </div>
+            <div id="home-pins-empty-actions" class="pin-empty-actions" hidden>
+              <button id="home-goto-entry" type="button" class="btn btn-small btn-primary">ไปหน้าบันทึก</button>
+              <button id="home-goto-cats" type="button" class="btn btn-small btn-secondary">จัดการหมวดหมู่</button>
+            </div>
+          </div>
 
           <div class="home-card">
             <div class="home-card-head">
@@ -243,6 +261,17 @@
           </div>
 
           <p id="budget-hint" class="budget-hint" hidden></p>
+
+          <!-- Quantity multiplies the amount above, which is the price of one. -->
+          <div class="qty-row">
+            <span class="qty-label">จำนวน</span>
+            <div class="qty-control">
+              <button id="qty-minus" type="button" class="qty-btn" aria-label="ลดจำนวน">−</button>
+              <input id="qty-input" type="number" inputmode="numeric" min="1" max="999" step="1" value="1" aria-label="จำนวน" />
+              <button id="qty-plus" type="button" class="qty-btn" aria-label="เพิ่มจำนวน">+</button>
+            </div>
+          </div>
+          <p id="qty-total" class="qty-total" hidden></p>
 
           <div class="field-label" id="category-label">เงินมาจากไหน</div>
           <div id="category-grid" class="category-grid"></div>
@@ -431,7 +460,10 @@
   <div id="drawer" class="drawer-overlay" hidden>
     <div class="drawer-card">
       <div class="drawer-head">
-        <h3>MENU</h3>
+        <div class="drawer-head-left">
+          <h3>MENU</h3>
+          <button id="version-badge" type="button" class="version-badge" title="ดูประวัติการอัปเดต"></button>
+        </div>
         <button id="drawer-close" type="button" class="icon-btn" aria-label="ปิด">✕</button>
       </div>
 
@@ -471,12 +503,24 @@
 
       <div class="drawer-section">
         <div class="drawer-section-title">
+          <span data-icon="entry" class="section-icon"></span>
+          หมวดหมู่
+        </div>
+        <p class="field-help">ตั้งราคาต่อหน่วย ปักหมุดไว้หน้าโฮม และลบหมวดที่ไม่ใช้แล้ว</p>
+        <div class="drawer-actions">
+          <button id="open-cats-btn" type="button" class="btn btn-secondary btn-small">จัดการหมวดหมู่</button>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-title">
           <span data-icon="file" class="section-icon"></span>
           ข้อมูลและคู่มือ
         </div>
         <div class="drawer-actions">
           <button id="open-guide-btn" type="button" class="btn btn-secondary btn-small">คู่มือการใช้งาน</button>
           <button id="open-teacher-btn" type="button" class="btn btn-secondary btn-small">ข้อมูลสำหรับอาจารย์</button>
+          <button id="open-changelog-btn" type="button" class="btn btn-secondary btn-small">ประวัติการอัปเดต</button>
         </div>
       </div>
 
@@ -488,6 +532,21 @@
         <div id="drawer-username" class="drawer-username"></div>
         <button id="logout-btn" type="button" class="btn btn-block btn-secondary">ออกจากระบบ</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Category manager: unit cost, pin to Home, and deletion -->
+  <div id="cats-overlay" class="doc-overlay" hidden>
+    <div class="doc-card">
+      <div class="doc-head">
+        <h3>จัดการหมวดหมู่</h3>
+        <button id="cats-close" type="button" class="icon-btn" aria-label="ปิด">✕</button>
+      </div>
+      <p class="cats-lead">
+        ตั้งราคาต่อหน่วยไว้ แล้วครั้งต่อไปที่กดหมวดนั้นในหน้าบันทึก ช่องจำนวนเงินจะเติมให้เอง
+        ส่วนหมวดที่ปักหมุดจะขึ้นบนหน้าโฮมให้กดบันทึกได้ทันที
+      </p>
+      <div id="cats-body" class="doc-body"></div>
     </div>
   </div>
 
@@ -508,6 +567,7 @@
       <h3>แก้ไขรายการ</h3>
       <div class="field-label">จำนวนเงิน</div>
       <input id="edit-amount-input" type="number" inputmode="decimal" min="0" step="0.01" class="text-input" />
+      <p id="edit-qty-note" class="field-help" hidden></p>
       <div class="field-label">รายละเอียด</div>
       <input id="edit-note-input" type="text" class="text-input" maxlength="200" />
       <div class="field-label">วันที่</div>

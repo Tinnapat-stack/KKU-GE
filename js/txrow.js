@@ -21,6 +21,14 @@ export function transactionRow(tx, { onDelete, onOpen } = {}) {
   cat.className = 'recent-cat';
   cat.textContent = tx.category;
 
+  // A count only earns its place when it is more than one.
+  if (tx.quantity > 1) {
+    const qty = document.createElement('span');
+    qty.className = 'recent-qty';
+    qty.textContent = `× ${tx.quantity}`;
+    cat.appendChild(qty);
+  }
+
   const meta = document.createElement('div');
   meta.className = 'recent-note';
   meta.textContent = tx.note ? `${formatThaiDate(tx.date)} · ${tx.note}` : formatThaiDate(tx.date);

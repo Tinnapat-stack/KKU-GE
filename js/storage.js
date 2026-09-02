@@ -6,6 +6,7 @@
 // Tombstones older than LIMITS.TOMBSTONE_DAYS are purged at login.
 
 import { LIMITS } from './validate.js';
+import { isBuiltInCategory } from './categories.js';
 
 const KEY_ACCOUNTS = 'psw_accounts';
 const KEY_SESSION = 'psw_session';
@@ -244,17 +245,90 @@ export function deleteGoal(accountId, id) {
   updateGoal(accountId, id, { deletedAt: now() });
 }
 
-/* ---------- Custom categories ---------- */
-// Typing a category under "อื่นๆ" saves it so it becomes a real button next time.
+/* ---------- Categories ---------- */
+// One record type covers two jobs. A record whose name is not one of the built-in
+// categories IS a category the user created. A record whose name matches a built-in
+// only carries that built-in's settings, the unit cost and whether it is pinned to
+// Home, so the entry grid must not draw a second button for it.
+//
+// Nothing marks the difference on disk: the name decides, which keeps the CSV
+// honest and means an older file needs no migration.
 
+const settingsOnly = (c) => isBuiltInCategory(c.kind, c.name);
+
+// Only the categories the user typed themselves. This is what the entry grid draws
+// and what the cap counts.
 export function getCustomCategories(accountId, kind) {
-  const list = alive(getData(accountId).categories);
+  const list = alive(getData(accountId).categories).filter((c) => !settingsOnly(c));
   return kind ? list.filter((c) => c.kind === kind) : list;
+}
+
+// Every stored record including the settings-only ones, keyed by name, so a caller
+// can ask what a category costs without caring where the name came from.
+export function getCategoryPrefs(accountId, kind) {
+  const map = new Map();
+  for (const c of alive(getData(accountId).categories)) {
+    if (kind && c.kind !== kind) continue;
+    map.set(c.name, { cost: c.cost || 0, pinned: !!c.pinned });
+  }
+  return map;
+}
+
+export function getPinnedCategories(accountId, kind) {
+  return alive(getData(accountId).categories)
+    .filter((c) => c.pinned && (!kind || c.kind === kind))
+    .map((c) => ({ kind: c.kind, name: c.name, cost: c.cost || 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'th'));
+}
+
+// Finds the record for a name, creating it if this is the first setting stored
+// against it. Used by both the cost and the pin writers.
+function upsertCategory(data, kind, name, patch) {
+  const stamp = now();
+  const existing = alive(data.categories).find(
+    (c) => c.kind === kind && c.name.toLowerCase() === name.toLowerCase()
+  );
+
+  if (existing) {
+    Object.assign(existing, patch, { updatedAt: stamp });
+    return existing;
+  }
+
+  const record = {
+    id: uid(),
+    kind,
+    name,
+    cost: 0,
+    pinned: false,
+    createdAt: stamp,
+    updatedAt: stamp,
+    ...patch,
+  };
+  data.categories.push(record);
+  return record;
+}
+
+export function setCategoryCost(accountId, kind, name, cost) {
+  const data = getData(accountId);
+  const record = upsertCategory(data, kind, name, { cost: Math.max(0, Number(cost) || 0) });
+  saveData(accountId, data);
+  return record;
+}
+
+export function setCategoryPinned(accountId, kind, name, pinned) {
+  const data = getData(accountId);
+  const record = upsertCategory(data, kind, name, { pinned: !!pinned });
+  saveData(accountId, data);
+  return record;
 }
 
 export function addCustomCategory(accountId, kind, name) {
   const clean = name.trim();
   if (!clean) return null;
+
+  // A name that already belongs to a built-in category would draw a duplicate
+  // button, so it is refused rather than quietly accepted.
+  if (isBuiltInCategory(kind, clean)) return null;
 
   const data = getData(accountId);
   const existing = alive(data.categories).find(
@@ -263,11 +337,12 @@ export function addCustomCategory(accountId, kind, name) {
   if (existing) return existing;
 
   const stamp = now();
-  const record = { id: uid(), kind, name: clean, createdAt: stamp, updatedAt: stamp };
+  const record = { id: uid(), kind, name: clean, cost: 0, pinned: false, createdAt: stamp, updatedAt: stamp };
   data.categories.push(record);
 
-  // Keep the grid manageable by dropping the oldest once the cap is passed.
-  const ofKind = alive(data.categories).filter((c) => c.kind === kind);
+  // Keep the grid manageable by dropping the oldest once the cap is passed. Only
+  // the user's own categories count: a built-in's settings take no room in the grid.
+  const ofKind = alive(data.categories).filter((c) => c.kind === kind && !settingsOnly(c));
   if (ofKind.length > LIMITS.MAX_CUSTOM_CATEGORIES) {
     ofKind
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
@@ -296,6 +371,16 @@ export function deleteCustomCategory(accountId, id) {
   const stamp = now();
   const target = data.categories.find((c) => c.id === id);
   if (!target) return { renamedTransactions: 0, renamedBudgets: 0 };
+
+  // A built-in category cannot be deleted, only stripped of its settings, or the
+  // rewrite below would rename records that still have a button to belong to.
+  if (settingsOnly(target)) {
+    target.cost = 0;
+    target.pinned = false;
+    target.updatedAt = stamp;
+    saveData(accountId, data);
+    return { renamedTransactions: 0, renamedBudgets: 0 };
+  }
 
   const from = target.name;
   const to = `อื่นๆ (${from})`;

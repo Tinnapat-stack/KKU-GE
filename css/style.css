@@ -1213,29 +1213,53 @@ main#pages { flex: 1; padding: 10px 16px 96px; }
 
 /* ---------- Home quick add ---------- */
 
-.quick-add {
-  display: flex;
+/* ---------- Pinned categories on Home ---------- */
+/* One tap has to be enough, so a chip carries the icon, the name and the price
+   that will land in the amount box. */
+
+.pin-groups { display: flex; flex-direction: column; gap: 14px; }
+
+.pin-group { display: flex; flex-direction: column; gap: 8px; }
+
+.pin-group-label {
+  font-size: 12px;
+  color: var(--muted-light);
+  letter-spacing: 0.02em;
+}
+
+.pin-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.pin-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
+  gap: 7px;
   cursor: pointer;
   font-family: inherit;
+  font-size: 13px;
   color: var(--text-light);
-  background: linear-gradient(135deg, rgba(224,180,69,0.22), rgba(224,180,69,0.10));
-  border: 1px solid rgba(224,180,69,0.42);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
 }
-.quick-add:hover { background: linear-gradient(135deg, rgba(224,180,69,0.3), rgba(224,180,69,0.14)); }
-.quick-add:active { transform: scale(0.995); }
-.quick-add-icon { display: flex; color: var(--gold); flex-shrink: 0; }
-.quick-add-icon .icon { width: 24px; height: 24px; }
-.quick-add-text { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
-.quick-add-text strong { font-size: 15px; line-height: 1.4; }
-.quick-add-text span { font-size: 11.5px; color: var(--muted-light); line-height: 1.5; }
-.quick-add-chevron { color: var(--gold); font-size: 22px; flex-shrink: 0; }
+.pin-chip:hover { background: rgba(255,255,255,0.13); }
+.pin-chip:active { transform: scale(0.98); }
+
+.pin-income { border-color: rgba(53,179,126,0.42); }
+.pin-income:hover { background: var(--green-soft); }
+.pin-expense { border-color: rgba(224,90,85,0.42); }
+.pin-expense:hover { background: var(--red-soft); }
+
+.pin-chip-icon { font-size: 15px; line-height: 1; }
+.pin-chip-name { font-weight: 500; }
+.pin-chip-cost {
+  font-size: 12px;
+  color: var(--gold);
+  border-left: 1px solid var(--glass-border);
+  padding-left: 7px;
+}
+
+.pin-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 .home-running {
   display: flex;
@@ -1374,3 +1398,225 @@ main#pages { flex: 1; padding: 10px 16px 96px; }
   body { background: #10151f; }
   .app { box-shadow: 0 0 60px rgba(0,0,0,0.4); }
 }
+
+/* ---------- Quantity on the entry form ---------- */
+/* At a quantity of one this row is inert, so the form still reads as the simple
+   one it was before quantities existed. */
+
+.qty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.qty-label { font-size: 13px; color: var(--muted-light); }
+
+.qty-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+
+.qty-btn {
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--gold);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 11px;
+}
+.qty-btn:hover { background: var(--gold-soft); }
+.qty-btn:active { transform: scale(0.94); }
+
+#qty-input {
+  width: 58px;
+  height: 34px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-light);
+  background: transparent;
+  border: none;
+  outline: none;
+  -moz-appearance: textfield;
+}
+#qty-input::-webkit-outer-spin-button,
+#qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.qty-total {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--gold);
+  text-align: right;
+}
+
+/* A category that carries a unit cost says so on its own button. The price takes a
+   second line rather than sharing the first, which would truncate a long name. */
+.category-btn.has-cost { flex-wrap: wrap; }
+.cat-cost {
+  flex-basis: 100%;
+  padding-left: 24px;
+  font-size: 11px;
+  color: var(--gold);
+}
+
+.recent-qty {
+  font-size: 11.5px;
+  color: var(--muted-light);
+  margin-left: 6px;
+}
+
+/* ---------- Category manager ---------- */
+
+.cats-lead {
+  margin: 0;
+  padding: 12px 20px 0;
+  font-size: 12.5px;
+  color: var(--muted-light);
+}
+
+.cats-section { margin-bottom: 24px; }
+.cats-section:last-child { margin-bottom: 0; }
+
+.cats-section-heading {
+  margin: 0 0 12px;
+  font-size: 14.5px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.cats-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+.cats-row.pinned { border-color: rgba(224,180,69,0.45); background: var(--gold-soft); }
+
+.cats-icon { font-size: 16px; line-height: 1; }
+.cats-name { flex: 1; min-width: 96px; font-size: 13.5px; }
+
+.cats-cost {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid var(--glass-border);
+  border-radius: 11px;
+  padding: 5px 9px;
+}
+.cats-currency { font-size: 12px; color: var(--muted-light); }
+.cats-cost input {
+  width: 84px;
+  font-size: 13px;
+  color: var(--text-light);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+.cats-cost input::placeholder { color: rgba(163,174,194,0.6); font-size: 11.5px; }
+
+.cats-pin,
+.cats-del {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-light);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 11px;
+  padding: 7px 10px;
+}
+.cats-pin:hover, .cats-del:hover { background: rgba(255,255,255,0.14); }
+/* On a pinned row the card behind is already gold-tinted, so the button needs its
+   own dark ground or the gold label falls below the AA threshold. */
+.cats-pin.on {
+  color: var(--gold);
+  border-color: rgba(224,180,69,0.5);
+  background: rgba(0,0,0,0.34);
+}
+.cats-pin.on:hover { background: rgba(0,0,0,0.44); }
+.cats-del { color: #ffb4b1; }
+
+.cats-note { margin: 8px 0 0; font-size: 12px; color: var(--muted-light); }
+
+/* ---------- Update log ---------- */
+
+.drawer-head-left { display: flex; align-items: baseline; gap: 10px; }
+
+.version-badge {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--gold);
+  background: var(--gold-soft);
+  border: 1px solid rgba(224,180,69,0.4);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.version-badge:hover { background: rgba(224,180,69,0.26); }
+
+.release-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.release-version {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+}
+.release-meta { font-size: 11.5px; color: var(--muted-light); }
+
+.release-current .release-version {
+  background: var(--gold-soft);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.release-summary {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.release-group { display: flex; gap: 10px; margin-bottom: 12px; }
+.release-group:last-child { margin-bottom: 0; }
+
+.release-group-label {
+  flex-shrink: 0;
+  width: 42px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 999px;
+  padding: 3px 0;
+  height: fit-content;
+}
+.group-added .release-group-label { color: #8fe0bd; background: var(--green-soft); }
+.group-changed .release-group-label { color: #f0cc7e; background: var(--gold-soft); }
+.group-removed .release-group-label { color: #ffb4b1; background: var(--red-soft); }
+
+.release-list { margin: 0; padding-left: 18px; }
+.release-list li { font-size: 12.5px; line-height: 1.75; margin-bottom: 6px; }
+.release-list li:last-child { margin-bottom: 0; }

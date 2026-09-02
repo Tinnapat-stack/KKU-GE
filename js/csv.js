@@ -25,6 +25,11 @@ const COLUMNS = [
   'created_at',
   'updated_at',
   'deleted_at',
+  // Added in V1.3.3. They sit at the end so a file written by an earlier version,
+  // which has neither the headers nor the values, still imports cleanly.
+  'cost',
+  'quantity',
+  'pinned',
 ];
 
 const RECORD_KINDS = new Set(['wallet', 'tx', 'goal', 'category', 'budget']);
@@ -63,6 +68,7 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         date: t.date,
         type: t.type,
         category: t.category,
+        quantity: t.quantity && t.quantity > 1 ? t.quantity : '',
         amount: t.amount,
         note: t.note,
         created_at: t.createdAt,
@@ -96,6 +102,8 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         id: c.id,
         name: c.name,
         type: c.kind,
+        cost: c.cost || '',
+        pinned: c.pinned ? '1' : '',
         created_at: c.createdAt,
         updated_at: c.updatedAt,
         deleted_at: c.deletedAt,
@@ -178,6 +186,14 @@ function parseAmount(raw) {
   return Math.round(n * 100) / 100;
 }
 
+// A missing or unreadable quantity means one unit, which is what every record
+// written before V1.3.3 meant.
+function parseQuantity(raw) {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 1 || n > LIMITS.QUANTITY_MAX) return 1;
+  return n;
+}
+
 // Returns { wallets, transactions, goals, categories, budgets, skipped } where skipped
 // lists the rows that failed validation, each with its line number and reason.
 // A structurally wrong file throws; a merely dirty file imports what it can.
@@ -255,6 +271,7 @@ export function parseCSV(text) {
         date,
         amount,
         category: get(r, 'category').slice(0, LIMITS.NAME_MAX) || 'อื่นๆ',
+        quantity: parseQuantity(get(r, 'quantity')),
         note: get(r, 'note').slice(0, LIMITS.NOTE_MAX),
       });
       return;
@@ -323,7 +340,14 @@ export function parseCSV(text) {
       skip(line, `ชนิดหมวดหมู่ไม่ถูกต้อง "${catKind}"`);
       return;
     }
-    result.categories.push({ ...base, kind: catKind, name: name.slice(0, LIMITS.NAME_MAX) });
+    const cost = parseAmount(get(r, 'cost'));
+    result.categories.push({
+      ...base,
+      kind: catKind,
+      name: name.slice(0, LIMITS.NAME_MAX),
+      cost: cost !== null && cost > 0 ? cost : 0,
+      pinned: get(r, 'pinned') === '1',
+    });
   });
 
   const total =

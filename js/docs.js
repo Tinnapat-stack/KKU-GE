@@ -4,6 +4,8 @@
 // Content lives here as data rather than in index.html so the two panels share one
 // renderer and stay easy to edit.
 
+import { APP_VERSION, VERSION_RULE, RELEASES } from './version.js';
+
 const $ = (id) => document.getElementById(id);
 
 /* ---------- Notes for the lecturer ---------- */
@@ -95,6 +97,28 @@ const TEACHER_DOC = {
         { q: 'คำใบ้รหัสผ่าน', a: 'แสดงเมื่อกรอกรหัสผิดครบ 3 ครั้ง เพราะระบบไม่มีการรีเซ็ตรหัสผ่าน' },
         { q: 'จำนวนวันที่บันทึกต่อเนื่อง', a: 'แสดงบนหน้าโฮมเพื่อช่วยเรื่องวินัย ซึ่งเป็น pain point ของ persona' },
         { q: 'รองรับ prefers-reduced-motion', a: 'ผู้ใช้ที่ตั้งค่าไม่เอาแอนิเมชันจะเห็นภาพนิ่งทันที' },
+        {
+          q: 'ราคาต่อหน่วยและจำนวน',
+          a:
+            'ค่าใช้จ่ายของกลุ่มเป้าหมายส่วนใหญ่เป็นของซ้ำเดิมที่ราคาคงที่ เช่น ก๋วยเตี๋ยวชามละ 50 บาท ' +
+            'ถ้าต้องพิมพ์ตัวเลขใหม่ทุกครั้ง คนจะเลิกบันทึกก่อนจะเห็นประโยชน์ ' +
+            'ตั้งราคาไว้ครั้งเดียวแล้วปรับแค่จำนวน เป็นการลดแรงเสียดทานที่ตรงจุดที่สุด ' +
+            'ยอดที่เก็บลงข้อมูลยังเป็นยอดรวมเสมอ หน้าสถิติและงบประมาณจึงไม่ต้องแก้อะไรเลย',
+        },
+        {
+          q: 'ปักหมุดหมวดไว้หน้าโฮม',
+          a:
+            'Blueprint เขียนว่าบันทึกได้ใน 3 วินาที แต่ปุ่มบันทึกด่วนเดิมพาไปหน้าเปล่าที่ยังต้องเลือกหมวดและพิมพ์เงิน ' +
+            'จึงเปลี่ยนเป็นชิปของหมวดที่ผู้ใช้ปักหมุดเอง กดครั้งเดียวได้ทั้งประเภท หมวด และราคา ' +
+            'เหลือแค่กดบันทึก ซึ่งทำให้คำโฆษณาในโจทย์เป็นความจริงได้จริง',
+        },
+        {
+          q: 'ประวัติการอัปเดตในตัวแอป',
+          a:
+            'งานนี้ส่งเป็นรอบๆ การมีหน้าที่บอกว่ารอบไหนเพิ่ม ปรับ หรือลบอะไร ' +
+            'ทำให้ตรวจสอบย้อนหลังได้โดยไม่ต้องเปิดดูโค้ด เลขเวอร์ชันผูกกับเฟส ' +
+            'N2 คือเฟส และ N3 คืออัปเดตย่อยในเฟสนั้น',
+        },
       ],
     },
     {
@@ -142,6 +166,16 @@ const GUIDE_DOC = {
         { q: 'สร้างหมวดใหม่', a: 'กดปุ่ม "อื่นๆ (พิมพ์เอง)" แล้วพิมพ์ชื่อหมวด ถ้าติ๊ก "บันทึกเป็นหมวดใหม่" ไว้ หมวดนั้นจะกลายเป็นปุ่มลัดในครั้งต่อไป' },
         { q: 'ใช้ครั้งเดียว', a: 'ถ้าไม่อยากให้จำไว้ ให้เอาเครื่องหมายติ๊กออกก่อนบันทึก' },
         { q: 'ลบหมวด', a: 'กดกากบาทมุมปุ่มหมวดนั้น ระบบจะบอกว่ามีกี่รายการที่ใช้อยู่ และจะเปลี่ยนรายการเหล่านั้นเป็น "อื่นๆ (ชื่อเดิม)" ให้ ไม่มีรายการไหนหายไป' },
+        { q: 'ตั้งราคาต่อหน่วย', a: 'เปิด MENU แล้วกดจัดการหมวดหมู่ ใส่ราคาในช่องของหมวดนั้น เช่น ก๋วยเตี๋ยว 50 ครั้งต่อไปที่กดหมวดนี้ ช่องจำนวนเงินจะเติม 50 ให้เอง และยังพิมพ์ทับได้' },
+        { q: 'ซื้อหลายชิ้น', a: 'ในหน้าบันทึกมีช่องจำนวนใต้ช่องเงิน กดปุ่มลบหรือบวก หรือพิมพ์ตัวเลขลงไปตรงๆ ก็ได้ ซื้อ 3 ชามจะได้ยอดรวม 150 ให้อัตโนมัติ' },
+      ],
+    },
+    {
+      heading: 'บันทึกด่วนจากหน้าโฮม',
+      items: [
+        { q: 'ปักหมุดหมวดที่ใช้บ่อย', a: 'เปิด MENU แล้วกดจัดการหมวดหมู่ กดปุ่มปักหมุดของหมวดนั้น หมวดที่ปักหมุดจะไปอยู่บนหน้าโฮม แยกเป็นแถวรายรับและแถวรายจ่าย' },
+        { q: 'ใช้ทางลัด', a: 'กดชิปบนหน้าโฮมหนึ่งครั้ง หน้าบันทึกจะเปิดขึ้นมาพร้อมประเภท หมวด และราคาที่ตั้งไว้ เหลือแค่กดบันทึก' },
+        { q: 'เลิกปักหมุด', a: 'กดปุ่มเดิมซ้ำในหน้าจัดการหมวดหมู่ ถ้าไม่เหลือหมวดที่ปักหมุดเลย หน้าโฮมจะมีปุ่มพาไปหน้าบันทึกให้แทน' },
       ],
     },
     {
@@ -166,6 +200,82 @@ const GUIDE_DOC = {
 /* ---------- Rendering ---------- */
 
 const DOCS = { teacher: TEACHER_DOC, guide: GUIDE_DOC };
+
+/* ---------- Update log ---------- */
+
+const CHANGE_GROUPS = [
+  { key: 'added', label: 'เพิ่ม' },
+  { key: 'changed', label: 'ปรับ' },
+  { key: 'removed', label: 'ลบ' },
+];
+
+function renderChangelog() {
+  $('doc-title').textContent = 'ประวัติการอัปเดต';
+
+  const body = $('doc-body');
+  body.innerHTML = '';
+
+  const lead = document.createElement('div');
+  lead.className = 'doc-lead';
+  const leadHeading = document.createElement('h4');
+  leadHeading.textContent = `เวอร์ชันปัจจุบัน ${APP_VERSION}`;
+  const leadBody = document.createElement('p');
+  leadBody.textContent = VERSION_RULE;
+  lead.append(leadHeading, leadBody);
+  body.appendChild(lead);
+
+  for (const release of RELEASES) {
+    const wrap = document.createElement('section');
+    wrap.className = 'doc-section release';
+    if (release.version === APP_VERSION) wrap.classList.add('release-current');
+
+    const head = document.createElement('div');
+    head.className = 'release-head';
+
+    const tag = document.createElement('span');
+    tag.className = 'release-version';
+    tag.textContent = release.version;
+
+    const meta = document.createElement('span');
+    meta.className = 'release-meta';
+    meta.textContent = `${release.phase} · ${release.date}`;
+
+    head.append(tag, meta);
+
+    const summary = document.createElement('p');
+    summary.className = 'release-summary';
+    summary.textContent = release.summary;
+
+    wrap.append(head, summary);
+
+    for (const group of CHANGE_GROUPS) {
+      const entries = release[group.key] || [];
+      if (entries.length === 0) continue;
+
+      const row = document.createElement('div');
+      row.className = `release-group group-${group.key}`;
+
+      const label = document.createElement('span');
+      label.className = 'release-group-label';
+      label.textContent = group.label;
+
+      const list = document.createElement('ul');
+      list.className = 'release-list';
+      for (const entry of entries) {
+        const li = document.createElement('li');
+        li.textContent = entry;
+        list.appendChild(li);
+      }
+
+      row.append(label, list);
+      wrap.appendChild(row);
+    }
+
+    body.appendChild(wrap);
+  }
+}
+
+/* ---------- Question and answer panels ---------- */
 
 function render(doc) {
   $('doc-title').textContent = doc.title;
@@ -226,9 +336,13 @@ export function initDocs() {
 }
 
 export function openDoc(which) {
-  const doc = DOCS[which];
-  if (!doc) return;
-  render(doc);
+  if (which === 'changelog') {
+    renderChangelog();
+  } else {
+    const doc = DOCS[which];
+    if (!doc) return;
+    render(doc);
+  }
   $('doc-overlay').hidden = false;
   $('doc-body').scrollTop = 0;
 }
