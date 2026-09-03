@@ -209,6 +209,11 @@
                 <span id="home-month-balance" class="home-stat-value balance">฿0</span>
               </div>
             </div>
+            <div id="home-month-transfers" class="home-running home-transfers" hidden>
+              <span>โอนระหว่างกระเป๋าเดือนนี้</span>
+              <strong id="home-transfer-detail" class="home-transfer-detail"></strong>
+            </div>
+
             <div class="home-running">
               <span>ยอดคงเหลือสะสมทั้งหมด</span>
               <strong id="home-running-balance" class="home-stat-value balance">฿0</strong>
@@ -407,6 +412,69 @@
 
         <section class="plan-section">
           <div class="plan-section-head">
+            <h3>รายการประจำ</h3>
+            <p class="section-sub">
+              รายรับหรือรายจ่ายที่เกิดซ้ำทุกรอบ เช่น เงินเดือนทุกวันที่ 1 หรือค่าสมาชิกทุก 30 วัน
+              เมื่อถึงกำหนด แอปจะถามก่อนสร้างให้ทุกครั้ง
+            </p>
+          </div>
+
+          <button id="add-recurring-btn" type="button" class="btn btn-block btn-secondary">+ ตั้งรายการประจำ</button>
+
+          <div id="recurring-form-wrap" class="budget-form-wrap" hidden>
+            <div class="entry-card">
+              <label class="field-label" for="recurring-type">ประเภท</label>
+              <select id="recurring-type" class="text-input">
+                <option value="expense">รายจ่าย</option>
+                <option value="income">รายรับ</option>
+              </select>
+
+              <label class="field-label" for="recurring-category">หมวดหมู่</label>
+              <select id="recurring-category" class="text-input"></select>
+
+              <div class="field-label">จำนวนเงินต่อรอบ</div>
+              <div class="amount-box goal-amount">
+                <span class="currency">฿</span>
+                <input id="recurring-amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" />
+              </div>
+
+              <label class="field-label" for="recurring-cycle">รอบการเกิดซ้ำ</label>
+              <select id="recurring-cycle" class="text-input">
+                <option value="monthly">ทุกเดือน ตามวันที่</option>
+                <option value="days">ทุก N วัน</option>
+              </select>
+              <p id="recurring-cycle-help" class="field-help"></p>
+
+              <div id="recurring-day-wrap">
+                <label class="field-label" for="recurring-day">วันที่ของเดือน</label>
+                <input id="recurring-day" type="number" inputmode="numeric" min="1" max="31" step="1" class="text-input" value="1" />
+              </div>
+
+              <div id="recurring-interval-wrap" hidden>
+                <label class="field-label" for="recurring-interval">ทุกกี่วัน</label>
+                <input id="recurring-interval" type="number" inputmode="numeric" min="1" max="365" step="1" class="text-input" value="30" />
+              </div>
+
+              <label class="field-label" for="recurring-start">เริ่มนับตั้งแต่</label>
+              <input id="recurring-start" type="date" class="text-input" />
+
+              <label class="field-label" for="recurring-note">รายละเอียด <span class="muted">(ไม่ใส่ก็ได้)</span></label>
+              <input id="recurring-note" type="text" class="text-input" maxlength="200" placeholder="เช่น ค่าห้อง" />
+
+              <p id="recurring-error" class="form-error" hidden></p>
+              <div class="goal-form-actions">
+                <button id="recurring-cancel-btn" type="button" class="btn btn-secondary">ยกเลิก</button>
+                <button id="recurring-save-btn" type="button" class="btn btn-primary">บันทึกรายการประจำ</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="recurring-list" class="recurring-list"></div>
+          <div id="recurring-empty" class="empty-state" hidden>ยังไม่มีรายการประจำ ลองตั้งค่าห้องหรือเงินเดือนดู</div>
+        </section>
+
+        <section class="plan-section">
+          <div class="plan-section-head">
             <h3>เป้าหมายการออม</h3>
             <p class="section-sub">ตั้งเป้าหมายแล้วค่อยๆ เก็บเงินเข้าไป</p>
           </div>
@@ -506,6 +574,7 @@
           <button id="add-wallet-btn" type="button" class="btn btn-secondary btn-small">+ สร้างกระเป๋า</button>
           <button id="rename-wallet-btn" type="button" class="btn btn-secondary btn-small">เปลี่ยนชื่อ</button>
           <button id="delete-wallet-btn" type="button" class="btn btn-danger btn-small">ลบกระเป๋านี้</button>
+          <button id="transfer-btn" type="button" class="btn btn-secondary btn-small">โอนเงินระหว่างกระเป๋า</button>
         </div>
       </div>
 
@@ -558,6 +627,68 @@
     </div>
   </div>
 
+  <!-- Recurring entries that came due while the app was closed -->
+  <div id="due-overlay" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <h3>รายการประจำถึงกำหนดแล้ว</h3>
+      <p id="due-count" class="section-sub"></p>
+      <p class="field-help">
+        เอาเครื่องหมายถูกออกจากรายการที่ไม่ต้องการสร้าง รายการที่ข้ามจะถือว่าผ่านรอบนั้นไปแล้ว
+        และจะไม่ถูกถามซ้ำอีก
+      </p>
+
+      <div id="due-list" class="due-list"></div>
+
+      <div class="modal-actions">
+        <div class="modal-actions-right">
+          <button id="due-skip" type="button" class="btn btn-secondary">ข้ามรอบนี้</button>
+          <button id="due-create" type="button" class="btn btn-primary">สร้างรายการที่ติ๊กไว้</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transfer between wallets -->
+  <div id="transfer-overlay" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <div class="doc-head">
+        <h3>โอนเงินระหว่างกระเป๋า</h3>
+        <button id="transfer-close" type="button" class="icon-btn" aria-label="ปิด">✕</button>
+      </div>
+
+      <p class="field-help">
+        การโอนไม่นับเป็นรายรับหรือรายจ่าย เพราะเงินยังเป็นของคุณอยู่ แค่ย้ายกระเป๋า
+        ยอดคงเหลือของทั้งสองกระเป๋าจะขยับ แต่สถิติและงบประมาณจะไม่นับรายการนี้
+      </p>
+
+      <div class="field-label">จากกระเป๋า</div>
+      <div id="transfer-from" class="transfer-from"></div>
+
+      <label class="field-label" for="transfer-to">ไปกระเป๋า</label>
+      <select id="transfer-to" class="text-input"></select>
+
+      <div class="field-label">จำนวนเงิน</div>
+      <div class="amount-box goal-amount">
+        <span class="currency">฿</span>
+        <input id="transfer-amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" />
+      </div>
+
+      <label class="field-label" for="transfer-date">วันที่</label>
+      <input id="transfer-date" type="date" class="text-input" />
+
+      <label class="field-label" for="transfer-note">รายละเอียด <span class="muted">(ไม่ใส่ก็ได้)</span></label>
+      <input id="transfer-note" type="text" class="text-input" maxlength="200" placeholder="เช่น ย้ายไปเก็บ" />
+
+      <p id="transfer-error" class="form-error" hidden></p>
+      <div class="modal-actions">
+        <div class="modal-actions-right">
+          <button id="transfer-cancel" type="button" class="btn btn-secondary">ยกเลิก</button>
+          <button id="transfer-save" type="button" class="btn btn-primary">โอนเงิน</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Category manager: unit cost, pin to Home, and deletion -->
   <div id="cats-overlay" class="doc-overlay" hidden>
     <div class="doc-card">
@@ -591,6 +722,7 @@
       <div class="field-label">จำนวนเงิน</div>
       <input id="edit-amount-input" type="number" inputmode="decimal" min="0" step="0.01" class="text-input" />
       <p id="edit-qty-note" class="field-help" hidden></p>
+      <p id="edit-transfer-note" class="field-help" hidden></p>
       <div class="field-label">รายละเอียด</div>
       <input id="edit-note-input" type="text" class="text-input" maxlength="200" />
       <div class="field-label">วันที่</div>

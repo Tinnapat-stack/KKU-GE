@@ -5,14 +5,17 @@ import { iconForCategory } from './categories.js';
 import { formatBaht, formatThaiDate } from './format.js';
 
 // `onDelete` and `onOpen` are optional; omit them for a read-only row.
-export function transactionRow(tx, { onDelete, onOpen } = {}) {
+export function transactionRow(tx, { onDelete, onOpen, peerName } = {}) {
   const item = document.createElement('div');
   item.className = 'recent-item';
   if (!onOpen) item.classList.add('recent-item-static');
 
   const icon = document.createElement('div');
   icon.className = 'recent-icon';
-  icon.textContent = iconForCategory(tx.type, tx.category);
+  // A transfer is neither income nor expense, so it gets its own mark rather than
+  // borrowing one that would read as earning or spending.
+  icon.textContent = tx.transferId ? '🔁' : iconForCategory(tx.type, tx.category);
+  if (tx.transferId) item.classList.add('recent-transfer');
 
   const info = document.createElement('div');
   info.className = 'recent-info';
@@ -33,7 +36,14 @@ export function transactionRow(tx, { onDelete, onOpen } = {}) {
 
   const meta = document.createElement('div');
   meta.className = 'recent-note';
-  meta.textContent = tx.note ? `${formatThaiDate(tx.date)} · ${tx.note}` : formatThaiDate(tx.date);
+  // `peerName` is supplied by the caller, which is the only place that knows the
+  // wallet list. Without it the row still reads correctly, just without the name.
+  const parts = [formatThaiDate(tx.date)];
+  if (tx.transferId && peerName) {
+    parts.push(tx.type === 'expense' ? `ไป ${peerName}` : `จาก ${peerName}`);
+  }
+  if (tx.note) parts.push(tx.note);
+  meta.textContent = parts.join(' · ');
 
   info.append(cat, meta);
 
@@ -51,7 +61,10 @@ export function transactionRow(tx, { onDelete, onOpen } = {}) {
     del.title = 'ลบรายการ';
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!confirm(`ลบรายการ "${tx.category}" ${formatBaht(tx.amount)} ?`)) return;
+      const question = tx.transferId
+        ? `ลบการโอน ${formatBaht(tx.amount)} ?\n\nรายการจะหายไปจากทั้งสองกระเป๋า`
+        : `ลบรายการ "${tx.category}" ${formatBaht(tx.amount)} ?`;
+      if (!confirm(question)) return;
       onDelete(tx);
     });
     item.appendChild(del);

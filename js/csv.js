@@ -34,9 +34,18 @@ const COLUMNS = [
   // category belongs to; `sub` is the subcategory a transaction was recorded under.
   'parent',
   'sub',
+  // Added in V1.4.2. Both legs of one move share transfer_id; transfer_peer names
+  // the wallet at the other end.
+  'transfer_id',
+  'transfer_peer',
+  // Added in V1.4.2 for repeating entries.
+  'cycle',
+  'cycle_value',
+  'last_run',
+  'active',
 ];
 
-const RECORD_KINDS = new Set(['wallet', 'tx', 'goal', 'category', 'budget']);
+const RECORD_KINDS = new Set(['wallet', 'tx', 'goal', 'category', 'budget', 'recurring']);
 
 function escapeField(value) {
   const s = value === undefined || value === null ? '' : String(value);
@@ -47,7 +56,7 @@ function row(values) {
   return COLUMNS.map((col) => escapeField(values[col])).join(',');
 }
 
-export function serializeAccount({ wallets, transactions, goals, categories, budgets }) {
+export function serializeAccount({ wallets, transactions, goals, categories, budgets, recurring }) {
   const lines = [COLUMNS.join(',')];
 
   for (const w of wallets) {
@@ -73,6 +82,8 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         type: t.type,
         category: t.category,
         sub: t.sub || '',
+        transfer_id: t.transferId || '',
+        transfer_peer: t.transferPeer || '',
         quantity: t.quantity && t.quantity > 1 ? t.quantity : '',
         amount: t.amount,
         note: t.note,
@@ -128,6 +139,29 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         created_at: b.createdAt,
         updated_at: b.updatedAt,
         deleted_at: b.deletedAt,
+      })
+    );
+  }
+
+  for (const r of recurring || []) {
+    lines.push(
+      row({
+        record: 'recurring',
+        id: r.id,
+        wallet_id: r.walletId,
+        type: r.type,
+        category: r.category,
+        sub: r.sub || '',
+        amount: r.amount,
+        note: r.note,
+        date: r.startDate,
+        cycle: r.cycle,
+        cycle_value: r.cycle === 'monthly' ? r.dayOfMonth : r.intervalDays,
+        last_run: r.lastRun || '',
+        active: r.active ? '1' : '',
+        created_at: r.createdAt,
+        updated_at: r.updatedAt,
+        deleted_at: r.deletedAt,
       })
     );
   }
@@ -217,7 +251,15 @@ export function parseCSV(text) {
     throw new Error('ไฟล์นี้ไม่ใช่ไฟล์ข้อมูลของ P Smart Wallet 888 (ไม่พบคอลัมน์ record หรือ id)');
   }
 
-  const result = { wallets: [], transactions: [], goals: [], categories: [], budgets: [], skipped: [] };
+  const result = {
+    wallets: [],
+    transactions: [],
+    goals: [],
+    categories: [],
+    budgets: [],
+    recurring: [],
+    skipped: [],
+  };
   const get = (r, col) => (cols[col] === -1 ? '' : (r[cols[col]] ?? '').trim());
   const skip = (line, reason) => result.skipped.push({ line, reason });
 
@@ -278,6 +320,8 @@ export function parseCSV(text) {
         amount,
         category: get(r, 'category').slice(0, LIMITS.NAME_MAX) || 'อื่นๆ',
         sub: get(r, 'sub').slice(0, LIMITS.NAME_MAX),
+        transferId: get(r, 'transfer_id'),
+        transferPeer: get(r, 'transfer_peer'),
         quantity: parseQuantity(get(r, 'quantity')),
         note: get(r, 'note').slice(0, LIMITS.NOTE_MAX),
       });
@@ -336,6 +380,47 @@ export function parseCSV(text) {
       return;
     }
 
+    if (kind === 'recurring') {
+      const type = get(r, 'type');
+      const amount = parseAmount(get(r, 'amount'));
+      const cycle = get(r, 'cycle');
+      const value = Math.floor(Number(get(r, 'cycle_value')));
+
+      if (type !== 'income' && type !== 'expense') {
+        skip(line, `ประเภทรายการประจำไม่ถูกต้อง "${type}"`);
+        return;
+      }
+      if (amount === null || amount <= 0) {
+        skip(line, `จำนวนเงินรายการประจำไม่ถูกต้อง "${get(r, 'amount')}"`);
+        return;
+      }
+      if (cycle !== 'monthly' && cycle !== 'days') {
+        skip(line, `รอบการเกิดซ้ำไม่ถูกต้อง "${cycle}"`);
+        return;
+      }
+      if (!Number.isFinite(value) || value < 1) {
+        skip(line, `ค่ารอบไม่ถูกต้อง "${get(r, 'cycle_value')}"`);
+        return;
+      }
+
+      result.recurring.push({
+        ...base,
+        walletId: get(r, 'wallet_id'),
+        type,
+        category: get(r, 'category').slice(0, LIMITS.NAME_MAX) || 'อื่นๆ',
+        sub: get(r, 'sub').slice(0, LIMITS.NAME_MAX),
+        amount,
+        note: get(r, 'note').slice(0, LIMITS.NOTE_MAX),
+        cycle,
+        dayOfMonth: cycle === 'monthly' ? value : 0,
+        intervalDays: cycle === 'days' ? value : 0,
+        startDate: get(r, 'date'),
+        lastRun: get(r, 'last_run'),
+        active: get(r, 'active') === '1',
+      });
+      return;
+    }
+
     // kind === 'category'
     const name = get(r, 'name');
     const catKind = get(r, 'type');
@@ -367,7 +452,8 @@ export function parseCSV(text) {
     result.transactions.length +
     result.goals.length +
     result.categories.length +
-    result.budgets.length;
+    result.budgets.length +
+    result.recurring.length;
 
   if (total === 0) {
     const reason = result.skipped.length
