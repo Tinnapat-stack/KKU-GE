@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta id="viewport-meta" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>P Smart Wallet 888</title>
 <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -16,7 +16,8 @@
         <span class="badge badge-up">↑</span>
         <span class="badge badge-down">↓</span>
       </div>
-      <h1>สมุดรายรับรายจ่าย</h1>
+      <h1 class="app-name">P Smart Wallet 888</h1>
+      <p class="app-tagline">สมุดรายรับรายจ่าย</p>
       <p class="auth-sub">บันทึกเงินเข้า-เงินออกของแต่ละวัน แล้วดูสรุปว่าช่วงนี้เหลือเท่าไร</p>
 
       <!-- Sign in: username is enough. Password is an opt-in extra. -->
@@ -143,6 +144,7 @@
       <!-- Home Page -->
       <section id="page-home" class="page">
         <div class="home-intro">
+          <p class="home-app-name">P Smart Wallet 888</p>
           <h2 id="home-greeting"></h2>
           <p id="home-date" class="home-date"></p>
         </div>
@@ -279,6 +281,9 @@
           <div id="custom-category-wrap" class="custom-category-wrap" hidden>
             <input id="custom-category-input" type="text" class="text-input" maxlength="40" placeholder="พิมพ์ชื่อหมวดหมู่ เช่น น้ำมัน" autocomplete="off" />
             <div id="category-suggestions" class="category-suggestions" hidden></div>
+
+            <label class="field-label" for="custom-category-parent">ให้อยู่ใต้หมวดหลัก</label>
+            <select id="custom-category-parent" class="text-input"></select>
             <label class="checkbox-row checkbox-inline">
               <input id="save-as-category" type="checkbox" checked />
               <span>บันทึกเป็นหมวดใหม่</span>
@@ -461,8 +466,11 @@
     <div class="drawer-card">
       <div class="drawer-head">
         <div class="drawer-head-left">
-          <h3>MENU</h3>
-          <button id="version-badge" type="button" class="version-badge" title="ดูประวัติการอัปเดต"></button>
+          <span class="drawer-app-name">P Smart Wallet 888</span>
+          <div class="drawer-head-row">
+            <h3>MENU</h3>
+            <button id="version-badge" type="button" class="version-badge" title="ดูประวัติการอัปเดต"></button>
+          </div>
         </div>
         <button id="drawer-close" type="button" class="icon-btn" aria-label="ปิด">✕</button>
       </div>
@@ -510,6 +518,21 @@
         <div class="drawer-actions">
           <button id="open-cats-btn" type="button" class="btn btn-secondary btn-small">จัดการหมวดหมู่</button>
         </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-title">
+          <span data-icon="home" class="section-icon"></span>
+          การแสดงผล
+        </div>
+        <label class="checkbox-row">
+          <input id="zoom-lock" type="checkbox" checked />
+          <span>ล็อกหน้าจอไม่ให้ซูมเอง</span>
+        </label>
+        <p class="field-help">
+          กันไม่ให้หน้าจอซูมเข้าเองตอนแตะช่องกรอกหรือแตะสองครั้ง
+          ถ้าอยากขยายดูตัวเล็กๆ ให้ปิดสวิตช์นี้ก่อน
+        </p>
       </div>
 
       <div class="drawer-section">

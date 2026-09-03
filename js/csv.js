@@ -30,6 +30,10 @@ const COLUMNS = [
   'cost',
   'quantity',
   'pinned',
+  // Added in V1.4.1 with subcategories. `parent` names the main category a stored
+  // category belongs to; `sub` is the subcategory a transaction was recorded under.
+  'parent',
+  'sub',
 ];
 
 const RECORD_KINDS = new Set(['wallet', 'tx', 'goal', 'category', 'budget']);
@@ -68,6 +72,7 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         date: t.date,
         type: t.type,
         category: t.category,
+        sub: t.sub || '',
         quantity: t.quantity && t.quantity > 1 ? t.quantity : '',
         amount: t.amount,
         note: t.note,
@@ -102,6 +107,7 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         id: c.id,
         name: c.name,
         type: c.kind,
+        parent: c.parent || '',
         cost: c.cost || '',
         pinned: c.pinned ? '1' : '',
         created_at: c.createdAt,
@@ -271,6 +277,7 @@ export function parseCSV(text) {
         date,
         amount,
         category: get(r, 'category').slice(0, LIMITS.NAME_MAX) || 'อื่นๆ',
+        sub: get(r, 'sub').slice(0, LIMITS.NAME_MAX),
         quantity: parseQuantity(get(r, 'quantity')),
         note: get(r, 'note').slice(0, LIMITS.NOTE_MAX),
       });
@@ -341,10 +348,15 @@ export function parseCSV(text) {
       return;
     }
     const cost = parseAmount(get(r, 'cost'));
+    // A row with no parent column came from before subcategories existed. Leaving
+    // parent undefined lets the storage layer decide from the name, which is the same
+    // path an older localStorage record takes.
+    const parent = get(r, 'parent');
     result.categories.push({
       ...base,
       kind: catKind,
       name: name.slice(0, LIMITS.NAME_MAX),
+      ...(cols.parent === -1 ? {} : { parent: parent.slice(0, LIMITS.NAME_MAX) }),
       cost: cost !== null && cost > 0 ? cost : 0,
       pinned: get(r, 'pinned') === '1',
     });

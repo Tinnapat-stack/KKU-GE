@@ -10,6 +10,7 @@ import {
   renameWallet,
   deleteWallet,
   purgeTombstones,
+  migrateCategories,
   rehomeOrphans,
   previewImport,
   mergeImported,
@@ -35,6 +36,49 @@ let pagesReady = false;
 let currentPage = 'home';
 
 /* ---------- Boot ---------- */
+
+const ZOOM_KEY = 'psw_zoom_lock';
+
+// Locking the viewport is a property of this device, not of the account, so it lives
+// outside the account data and survives a log out.
+//
+// The lock stops the automatic zoom on a double tap. What actually stops Safari from
+// zooming in when a field is focused is the 16px minimum on every input, which the
+// stylesheet enforces whether the lock is on or off.
+function applyZoomLock(locked) {
+  const meta = $('viewport-meta');
+  if (!meta) return;
+  meta.setAttribute(
+    'content',
+    locked
+      ? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+      : 'width=device-width, initial-scale=1.0'
+  );
+}
+
+function zoomLocked() {
+  try {
+    return localStorage.getItem(ZOOM_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function initZoomLock() {
+  const box = $('zoom-lock');
+  const locked = zoomLocked();
+  box.checked = locked;
+  applyZoomLock(locked);
+
+  box.addEventListener('change', () => {
+    try {
+      localStorage.setItem(ZOOM_KEY, box.checked ? 'on' : 'off');
+    } catch {
+      // A browser with storage blocked still gets the setting for this session.
+    }
+    applyZoomLock(box.checked);
+  });
+}
 
 function boot() {
   renderIcons();
@@ -64,6 +108,7 @@ function enterApp(account, preferredWalletId) {
   ctx.username = account.username;
 
   purgeTombstones(account.id);
+  migrateCategories(account.id);
   const rehomed = rehomeOrphans(account.id);
 
   const wallets = getWallets(account.id);
@@ -134,6 +179,8 @@ function initShell() {
   $('export-btn').addEventListener('click', () => filesync.downloadCSV(ctx.accountId, ctx.username));
   $('import-btn').addEventListener('click', importFile);
   $('sync-banner-btn').addEventListener('click', regrantPermission);
+
+  initZoomLock();
 
   initDocs();
   $('open-guide-btn').addEventListener('click', () => openDoc('guide'));

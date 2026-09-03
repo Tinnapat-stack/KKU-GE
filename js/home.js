@@ -137,14 +137,16 @@ function renderPins() {
   }
 }
 
-function pinChip({ kind, name, cost }) {
+function pinChip({ kind, parent, name, cost }) {
   const chip = document.createElement('button');
   chip.type = 'button';
   chip.className = `pin-chip pin-${kind}`;
 
   const icon = document.createElement('span');
   icon.className = 'pin-chip-icon';
-  icon.textContent = iconForCategory(kind, name);
+  // A subcategory carries its main category's emoji, so a row of chips still reads
+  // as groups rather than a pile of unrelated names.
+  icon.textContent = iconForCategory(kind, parent || name);
 
   const label = document.createElement('span');
   label.className = 'pin-chip-name';
@@ -163,7 +165,7 @@ function pinChip({ kind, name, cost }) {
     // The page has to be visible before the form is filled, or the focus that puts
     // the cursor in the amount box lands on a hidden field and is dropped.
     if (onNavigate) onNavigate('entry');
-    prefillEntry({ type: kind, category: name });
+    prefillEntry({ type: kind, parent, name });
   });
 
   return chip;
