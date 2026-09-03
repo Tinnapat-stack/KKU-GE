@@ -94,6 +94,13 @@ function periodBounds(range, offset) {
   };
 }
 
+// The report reads the same period the user is already looking at, so the date
+// maths lives here once rather than being repeated there.
+export function currentPeriod() {
+  const { start, end, title } = periodBounds(currentRange, currentOffset);
+  return { range: currentRange, start, end, title };
+}
+
 /* ---------- Render ---------- */
 
 export function renderAnalytics() {

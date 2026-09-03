@@ -369,6 +369,13 @@
             <div class="breakdown-title income-title">เงินเข้ามาจากไหน</div>
             <div id="breakdown-income" class="breakdown-list"></div>
           </div>
+
+          <button id="open-report-btn" type="button" class="btn btn-block btn-secondary">
+            สรุปเป็นรายงาน
+          </button>
+          <p class="field-help">
+            เปิดหน้าสรุปของช่วงเวลาที่เลือกไว้ กดพิมพ์แล้วเลือกบันทึกเป็น PDF ได้จากหน้าต่างพิมพ์ของเครื่อง
+          </p>
         </div>
       </section>
 
@@ -624,6 +631,20 @@
         <div id="drawer-username" class="drawer-username"></div>
         <button id="logout-btn" type="button" class="btn btn-block btn-secondary">ออกจากระบบ</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Printable summary of the period chosen on the analytics page -->
+  <div id="report-overlay" class="doc-overlay" hidden>
+    <div class="doc-card report-card">
+      <div class="doc-head report-chrome">
+        <h3>รายงานสรุป</h3>
+        <div class="report-head-actions">
+          <button id="report-print" type="button" class="btn btn-primary btn-small">พิมพ์ / บันทึก PDF</button>
+          <button id="report-close" type="button" class="icon-btn" aria-label="ปิด">✕</button>
+        </div>
+      </div>
+      <div id="report-body" class="doc-body report-body"></div>
     </div>
   </div>
 
