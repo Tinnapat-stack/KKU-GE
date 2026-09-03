@@ -1765,3 +1765,160 @@ main#pages { flex: 1; padding: 10px 16px 96px; }
 .due-amount { font-size: 13.5px; font-weight: 700; white-space: nowrap; }
 .due-amount.income { color: #7fd8ac; }
 .due-amount.expense { color: #f19a97; }
+
+/* ---------- Summary report ---------- */
+
+.report-card { max-width: 620px; }
+.report-head-actions { display: flex; align-items: center; gap: 10px; }
+.report-body { font-size: 13px; }
+
+.report-header {
+  padding-bottom: 14px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--gold);
+}
+.report-app { margin: 0 0 2px; font-size: 11.5px; letter-spacing: 0.04em; color: var(--gold); }
+.report-title { margin: 0 0 12px; font-size: 19px; }
+
+.report-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.report-meta dt { color: var(--muted-light); }
+.report-meta dd { margin: 0; }
+
+.report-section { margin-bottom: 26px; }
+.report-section:last-child { margin-bottom: 0; }
+
+.report-heading {
+  margin: 0 0 10px;
+  font-size: 14.5px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+}
+.report-note { margin: 8px 0 0; font-size: 12px; color: var(--muted-light); }
+
+.report-totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  margin: 0;
+}
+.report-totals dt { font-size: 13px; }
+.report-totals dd { margin: 0; text-align: right; font-weight: 700; }
+.report-amount.income { color: #7fd8ac; }
+.report-amount.expense { color: #f19a97; }
+.report-amount.balance { color: var(--gold); }
+.report-amount.muted { color: var(--muted-light); font-weight: 400; }
+
+/* Tables scroll inside their own box rather than pushing the page sideways. */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.report-table th,
+.report-table td {
+  padding: 7px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.09);
+  vertical-align: top;
+}
+.report-table th {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted-light);
+  white-space: nowrap;
+}
+.report-table .num { text-align: right; white-space: nowrap; }
+.report-table .indent { padding-left: 22px; color: var(--muted-light); }
+.report-table td.income { color: #7fd8ac; }
+.report-table td.expense { color: #f19a97; }
+
+.report-main-row td { font-weight: 600; }
+.report-sub-row td { font-size: 12px; }
+.report-empty-row td { color: var(--muted-light); }
+.report-total-row td {
+  font-weight: 700;
+  border-top: 2px solid rgba(255,255,255,0.2);
+  border-bottom: none;
+}
+
+/* ---------- Printing ---------- */
+/* The screen theme is a dark photograph behind glass. On paper that is a waste of
+   ink and unreadable, so printing swaps to black on white and drops everything that
+   is not the report itself. */
+
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* The whole app shell goes, not just its parts: the empty column it leaves behind
+     would otherwise push the report down onto a second sheet. The report overlay is
+     a sibling of #app, so hiding #app does not take it with it. */
+  .backdrop,
+  #app,
+  #auth,
+  .toast-stack,
+  .report-chrome,
+  .drawer-overlay,
+  .modal-overlay { display: none !important; }
+
+  /* The overlay stops being an overlay and becomes the page. */
+  .doc-overlay#report-overlay {
+    position: static;
+    display: block;
+    background: none;
+    padding: 0;
+  }
+  .report-card {
+    max-width: none;
+    max-height: none;
+    background: #fff !important;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .report-body {
+    overflow: visible;
+    padding: 0;
+    font-size: 11pt;
+  }
+
+  .report-app { color: #444 !important; }
+  .report-header { border-bottom-color: #000; }
+  .report-heading { border-bottom-color: #999; }
+  .report-meta dt,
+  .report-note,
+  .report-table th,
+  .report-table .indent,
+  .report-empty-row td,
+  .report-amount.muted { color: #444 !important; }
+
+  .report-title,
+  .report-meta dd,
+  .report-table td,
+  .report-totals dt,
+  .report-totals dd,
+  .report-amount.income,
+  .report-amount.expense,
+  .report-amount.balance,
+  .report-table td.income,
+  .report-table td.expense { color: #000 !important; }
+
+  .report-table th,
+  .report-table td { border-bottom-color: #bbb; }
+  .report-total-row td { border-top-color: #000; }
+
+  /* A table split across a page break is much harder to read than one that starts
+     on the next sheet. */
+  .report-section { break-inside: avoid; page-break-inside: avoid; }
+  .report-table thead { display: table-header-group; }
+  .report-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+  @page { margin: 14mm; }
+}

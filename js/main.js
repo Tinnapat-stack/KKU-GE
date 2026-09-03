@@ -29,6 +29,7 @@ import { initDocs, openDoc } from './docs.js';
 import { initCats, setCatsContext, openCats } from './cats.js';
 import { initTransfer, setTransferContext, openTransfer } from './transfer.js';
 import { initRecurring, setRecurringContext, checkDue } from './recurring.js';
+import { initReport, setReportContext, openReport } from './report.js';
 import { APP_VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
@@ -130,6 +131,7 @@ function enterApp(account, preferredWalletId) {
     initCats(ctx, renderAll);
     initTransfer(ctx, renderAll);
     initRecurring(ctx, renderAll);
+    initReport(ctx);
     initShell();
     pagesReady = true;
   }
@@ -158,6 +160,7 @@ function pushContext() {
   setCatsContext(ctx);
   setTransferContext(ctx);
   setRecurringContext(ctx);
+  setReportContext(ctx);
 }
 
 function renderAll() {
@@ -198,6 +201,7 @@ function initShell() {
   $('open-changelog-btn').addEventListener('click', () => openDoc('changelog'));
 
   $('open-cats-btn').addEventListener('click', openCats);
+  $('open-report-btn').addEventListener('click', openReport);
   $('transfer-btn').addEventListener('click', () => {
     toggleDrawer(false);
     openTransfer();
