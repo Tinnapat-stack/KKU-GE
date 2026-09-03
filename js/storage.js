@@ -13,7 +13,14 @@ const KEY_SESSION = 'psw_session';
 const dataKey = (accountId) => `psw_data_${accountId}`;
 const dirtyKey = (accountId) => `psw_dirty_${accountId}`;
 
-const EMPTY_DATA = { wallets: [], transactions: [], goals: [], categories: [], budgets: [] };
+const EMPTY_DATA = {
+  wallets: [],
+  transactions: [],
+  goals: [],
+  categories: [],
+  budgets: [],
+  recurring: [],
+};
 
 export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -167,7 +174,12 @@ export function purgeTombstones(accountId) {
 
   const data = getData(accountId);
   const count = (d) =>
-    d.wallets.length + d.transactions.length + d.goals.length + d.categories.length + d.budgets.length;
+    d.wallets.length +
+    d.transactions.length +
+    d.goals.length +
+    d.categories.length +
+    d.budgets.length +
+    d.recurring.length;
   const before = count(data);
 
   data.wallets = data.wallets.filter(keep);
@@ -175,6 +187,7 @@ export function purgeTombstones(accountId) {
   data.goals = data.goals.filter(keep);
   data.categories = data.categories.filter(keep);
   data.budgets = data.budgets.filter(keep);
+  data.recurring = data.recurring.filter(keep);
 
   const after = count(data);
   if (after !== before) saveData(accountId, data);
@@ -218,14 +231,89 @@ export function deleteWallet(accountId, walletId) {
   data.transactions.filter((t) => t.walletId === walletId && !t.deletedAt).forEach(kill);
   data.goals.filter((g) => g.walletId === walletId && !g.deletedAt).forEach(kill);
   data.budgets.filter((b) => b.walletId === walletId && !b.deletedAt).forEach(kill);
+  data.recurring.filter((r) => r.walletId === walletId && !r.deletedAt).forEach(kill);
   saveData(accountId, data);
 }
 
 /* ---------- Transactions ---------- */
 
-export function getTransactions(accountId, walletId) {
-  const list = alive(getData(accountId).transactions);
-  return walletId ? list.filter((t) => t.walletId === walletId) : list;
+// The reserved category both legs of a transfer are filed under. It is not one of
+// the pickable categories, so nothing else can land in it by accident.
+export const TRANSFER_CATEGORY = 'โอนระหว่างกระเป๋า';
+
+export const isTransfer = (t) => !!t.transferId;
+
+// Moving money between wallets is neither earning nor spending, so every figure
+// that answers "how much did I make or spend" has to leave transfers out. Passing
+// includeTransfers: false is what those callers do; the balance and the recent list
+// keep the default, because a wallet whose transfers were hidden would not add up.
+export function getTransactions(accountId, walletId, { includeTransfers = true } = {}) {
+  let list = alive(getData(accountId).transactions);
+  if (walletId) list = list.filter((t) => t.walletId === walletId);
+  if (!includeTransfers) list = list.filter((t) => !isTransfer(t));
+  return list;
+}
+
+/* ---------- Transfers ---------- */
+// One move of money is two records: an expense leaving the source wallet and an
+// income arriving in the destination. They share a transferId, so either one can
+// find the other, and each stores the wallet at the far end for the row to name.
+
+export function addTransfer(accountId, { fromWalletId, toWalletId, amount, date, note }) {
+  const data = getData(accountId);
+  const stamp = now();
+  const transferId = uid();
+  const shared = { transferId, amount, date, note: note || '', category: TRANSFER_CATEGORY, sub: '' };
+
+  const out = {
+    id: uid(),
+    walletId: fromWalletId,
+    type: 'expense',
+    transferPeer: toWalletId,
+    createdAt: stamp,
+    updatedAt: stamp,
+    ...shared,
+  };
+  const income = {
+    id: uid(),
+    walletId: toWalletId,
+    type: 'income',
+    transferPeer: fromWalletId,
+    createdAt: stamp,
+    updatedAt: stamp,
+    ...shared,
+  };
+
+  data.transactions.push(out, income);
+  saveData(accountId, data);
+  return { transferId, out, income };
+}
+
+// Both legs always move together. Editing or deleting one alone would leave the two
+// wallets telling different stories about the same money.
+export function updateTransfer(accountId, transferId, patch) {
+  const data = getData(accountId);
+  const stamp = now();
+  data.transactions = data.transactions.map((t) =>
+    t.transferId === transferId ? { ...t, ...patch, updatedAt: stamp } : t
+  );
+  saveData(accountId, data);
+}
+
+export function deleteTransfer(accountId, transferId) {
+  updateTransfer(accountId, transferId, { deletedAt: now() });
+}
+
+// Transfers in and out of one wallet over a date range, for the line Home shows so
+// the money that left does not simply look lost.
+export function transferTotals(accountId, walletId, start, end) {
+  const rows = alive(getData(accountId).transactions).filter(
+    (t) => isTransfer(t) && t.walletId === walletId && t.date >= start && t.date <= end
+  );
+  return {
+    in: rows.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0),
+    out: rows.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0),
+  };
 }
 
 export function addTransaction(accountId, tx) {
@@ -246,6 +334,11 @@ export function updateTransaction(accountId, id, patch) {
 }
 
 export function deleteTransaction(accountId, id) {
+  const target = alive(getData(accountId).transactions).find((t) => t.id === id);
+  if (target && target.transferId) {
+    deleteTransfer(accountId, target.transferId);
+    return;
+  }
   updateTransaction(accountId, id, { deletedAt: now() });
 }
 
@@ -542,6 +635,41 @@ export function deleteCustomCategory(accountId, id) {
   return { renamedTransactions, renamedBudgets };
 }
 
+/* ---------- Recurring entries ---------- */
+// A rule describes an entry that repeats. Two cycles, because they answer different
+// questions and drift apart over a year:
+//
+//   monthly  a day of the calendar month. The 1st is the 1st whether the month has
+//            28 or 31 days; a 31 clamps to the last day of a shorter month.
+//   days     a count of days from the last occurrence, so the date walks forward
+//            through the calendar. A 30-day subscription works this way.
+
+export function getRecurring(accountId, walletId) {
+  const list = alive(getData(accountId).recurring);
+  return walletId ? list.filter((r) => r.walletId === walletId) : list;
+}
+
+export function addRecurring(accountId, rule) {
+  const data = getData(accountId);
+  const stamp = now();
+  const record = { id: uid(), active: true, lastRun: '', createdAt: stamp, updatedAt: stamp, ...rule };
+  data.recurring.push(record);
+  saveData(accountId, data);
+  return record;
+}
+
+export function updateRecurring(accountId, id, patch) {
+  const data = getData(accountId);
+  data.recurring = data.recurring.map((r) =>
+    r.id === id ? { ...r, ...patch, updatedAt: now() } : r
+  );
+  saveData(accountId, data);
+}
+
+export function deleteRecurring(accountId, id) {
+  updateRecurring(accountId, id, { deletedAt: now() });
+}
+
 /* ---------- Budgets ---------- */
 // A budget is a recurring monthly ceiling for one expense category, or for the
 // wallet as a whole under the TOTAL_BUDGET sentinel. At most one live budget per
@@ -619,7 +747,8 @@ export function previewImport(accountId, imported) {
   const goals = mergeList(data.goals, imported.goals);
   const categories = mergeList(data.categories, imported.categories || []);
   const budgets = mergeList(data.budgets, imported.budgets || []);
-  const all = [wallets, transactions, goals, categories, budgets];
+  const recurring = mergeList(data.recurring, imported.recurring || []);
+  const all = [wallets, transactions, goals, categories, budgets, recurring];
 
   return {
     added: all.reduce((n, r) => n + r.added, 0),
@@ -636,6 +765,7 @@ export function mergeImported(accountId, imported, replace = false) {
       goals: imported.goals,
       categories: imported.categories || [],
       budgets: imported.budgets || [],
+      recurring: imported.recurring || [],
     });
     return;
   }
@@ -646,6 +776,7 @@ export function mergeImported(accountId, imported, replace = false) {
   data.goals = mergeList(data.goals, imported.goals).list;
   data.categories = mergeList(data.categories, imported.categories || []).list;
   data.budgets = mergeList(data.budgets, imported.budgets || []).list;
+  data.recurring = mergeList(data.recurring, imported.recurring || []).list;
   saveData(accountId, data);
 }
 

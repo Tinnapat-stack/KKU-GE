@@ -2,8 +2,10 @@
 
 import {
   getTransactions,
+  getWallets,
   addTransaction,
   updateTransaction,
+  updateTransfer,
   deleteTransaction,
   getCustomCategories,
   getSubcategories,
@@ -41,6 +43,7 @@ let currentType = 'income';
 let selected = null; // { parent, name, category, sub }
 let lastSavedCategory = null;
 let editingId = null;
+let editingTransferId = null;
 
 export function initEntry(context) {
   ctx = context;
@@ -503,7 +506,8 @@ function flashSaved() {
 
 function renderTodayTotal() {
   const today = todayISO();
-  const spent = getTransactions(ctx.accountId, ctx.walletId)
+  // Money moved to another wallet was not spent today, whatever the row type says.
+  const spent = getTransactions(ctx.accountId, ctx.walletId, { includeTransfers: false })
     .filter((t) => t.type === 'expense' && t.date === today)
     .reduce((sum, t) => sum + t.amount, 0);
 
@@ -527,9 +531,12 @@ function renderRecent() {
     return;
   }
 
+  const walletNames = new Map(getWallets(ctx.accountId).map((w) => [w.id, w.name]));
+
   for (const tx of all.slice(0, RECENT_LIMIT)) {
     list.appendChild(
       transactionRow(tx, {
+        peerName: walletNames.get(tx.transferPeer),
         onOpen: openEditModal,
         onDelete: (t) => {
           deleteTransaction(ctx.accountId, t.id);
@@ -546,7 +553,14 @@ function renderRecent() {
 
 function openEditModal(tx) {
   editingId = tx.id;
+  editingTransferId = tx.transferId || null;
   $('edit-amount-input').value = tx.amount;
+
+  const transferNote = $('edit-transfer-note');
+  transferNote.hidden = !tx.transferId;
+  transferNote.textContent = tx.transferId
+    ? 'รายการนี้เป็นการโอนระหว่างกระเป๋า การแก้ไขจะมีผลกับทั้งสองกระเป๋าพร้อมกัน'
+    : '';
 
   // Quantity is shown but not editable here: changing it would raise the question
   // of whether the total follows, and this modal edits the total directly.
@@ -565,6 +579,7 @@ function openEditModal(tx) {
 
 function closeEditModal() {
   editingId = null;
+  editingTransferId = null;
   $('edit-modal').hidden = true;
 }
 
@@ -581,11 +596,11 @@ function saveEdit() {
     return;
   }
 
-  updateTransaction(ctx.accountId, editingId, {
-    amount: amountCheck.value,
-    date: dateCheck.value,
-    note: noteCheck.value,
-  });
+  // Editing one leg of a transfer alone would leave the two wallets disagreeing
+  // about the same money, so the change is applied to both.
+  const patch = { amount: amountCheck.value, date: dateCheck.value, note: noteCheck.value };
+  if (editingTransferId) updateTransfer(ctx.accountId, editingTransferId, patch);
+  else updateTransaction(ctx.accountId, editingId, patch);
   scheduleSync(ctx.accountId);
   closeEditModal();
   renderEntry();

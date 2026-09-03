@@ -101,7 +101,9 @@ export function renderAnalytics() {
   const startISO = toISODate(start);
   const endISO = toISODate(end);
 
-  const rows = getTransactions(ctx.accountId, ctx.walletId).filter(
+  // Transfers move money rather than make or spend it, so they stay out of every
+  // total, percentage and slice on this page.
+  const rows = getTransactions(ctx.accountId, ctx.walletId, { includeTransfers: false }).filter(
     (t) => t.date >= startISO && t.date <= endISO
   );
 

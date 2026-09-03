@@ -10,6 +10,7 @@ import {
   getWallets,
   getAccountById,
   getPinnedCategories,
+  transferTotals,
 } from './storage.js';
 import { budgetStatus, monthBounds, LEVEL_LABELS } from './budget.js';
 import { ICONS } from './icons.js';
@@ -81,9 +82,11 @@ function renderHero() {
 
 /* ---------- This month ---------- */
 
+// The month's income and expense figures answer "how much did I make and spend",
+// so a transfer between the user's own wallets does not belong in either of them.
 function monthTransactions() {
   const { start, end } = monthBounds();
-  return getTransactions(ctx.accountId, ctx.walletId).filter(
+  return getTransactions(ctx.accountId, ctx.walletId, { includeTransfers: false }).filter(
     (t) => t.date >= start && t.date <= end
   );
 }
@@ -102,8 +105,21 @@ function renderMonthSummary() {
   balanceEl.textContent = formatBahtShort(balance);
   balanceEl.classList.toggle('negative', balance < 0);
 
+  // Transfers move the wallet's balance even though they are not income or expense,
+  // so the line naming them keeps the month's figures from looking like a mistake.
+  const { start, end } = monthBounds();
+  const moved = transferTotals(ctx.accountId, ctx.walletId, start, end);
+  const transferRow = $('home-month-transfers');
+  const hasTransfers = moved.in > 0 || moved.out > 0;
+  transferRow.hidden = !hasTransfers;
+  if (hasTransfers) {
+    $('home-transfer-detail').textContent =
+      `เข้า ${formatBahtShort(moved.in)} · ออก ${formatBahtShort(moved.out)}`;
+  }
+
   // The blueprint asks for the running balance, not only this month's, so both are
-  // shown: the month for budgeting and the total for the real position.
+  // shown: the month for budgeting and the total for the real position. This one
+  // does count transfers: they are exactly what moves a wallet's balance.
   const all = getTransactions(ctx.accountId, ctx.walletId);
   const running = all.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
   const runningEl = $('home-running-balance');
@@ -183,8 +199,12 @@ function renderRecent() {
   $('home-recent-empty').hidden = rows.length > 0;
   $('home-recent-more').hidden = rows.length <= RECENT_ON_HOME;
 
+  // The row can only name the wallet at the far end of a transfer if it is told,
+  // because the transaction stores an id rather than a name.
+  const walletNames = new Map(getWallets(ctx.accountId).map((w) => [w.id, w.name]));
+
   for (const tx of rows.slice(0, RECENT_ON_HOME)) {
-    list.appendChild(transactionRow(tx));
+    list.appendChild(transactionRow(tx, { peerName: walletNames.get(tx.transferPeer) }));
   }
 }
 

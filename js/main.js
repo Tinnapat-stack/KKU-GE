@@ -27,6 +27,8 @@ import { validateName } from './validate.js';
 import { showToast } from './toast.js';
 import { initDocs, openDoc } from './docs.js';
 import { initCats, setCatsContext, openCats } from './cats.js';
+import { initTransfer, setTransferContext, openTransfer } from './transfer.js';
+import { initRecurring, setRecurringContext, checkDue } from './recurring.js';
 import { APP_VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
@@ -126,6 +128,8 @@ function enterApp(account, preferredWalletId) {
     initPlan(ctx);
     initHome(ctx, showPage, createWallet);
     initCats(ctx, renderAll);
+    initTransfer(ctx, renderAll);
+    initRecurring(ctx, renderAll);
     initShell();
     pagesReady = true;
   }
@@ -135,6 +139,10 @@ function enterApp(account, preferredWalletId) {
   renderAll();
   showPage('home');
   restoreFileSync();
+
+  // Nothing can run while the app is closed, so the dates that came due in the
+  // meantime are offered now, once, and only after the screen is ready to show them.
+  if (ctx.walletId) checkDue();
 
   if (rehomed > 0) {
     alert(`พบ ${rehomed} รายการที่ไม่มีกระเป๋า ย้ายไปไว้ในกระเป๋า "รายการที่กู้คืน" แล้ว`);
@@ -148,6 +156,8 @@ function pushContext() {
   setPlanContext(ctx);
   setHomeContext(ctx);
   setCatsContext(ctx);
+  setTransferContext(ctx);
+  setRecurringContext(ctx);
 }
 
 function renderAll() {
@@ -188,6 +198,10 @@ function initShell() {
   $('open-changelog-btn').addEventListener('click', () => openDoc('changelog'));
 
   $('open-cats-btn').addEventListener('click', openCats);
+  $('transfer-btn').addEventListener('click', () => {
+    toggleDrawer(false);
+    openTransfer();
+  });
 
   $('version-badge').textContent = APP_VERSION;
   $('version-badge').addEventListener('click', () => openDoc('changelog'));

@@ -64,7 +64,8 @@ function buildRow(budget, transactions, date) {
 // Every budget for the wallet, riskiest first, with the wallet total separated out
 // so callers can pin it to the top rather than sorting it among the categories.
 export function budgetStatus(accountId, walletId, date = new Date()) {
-  const transactions = getTransactions(accountId, walletId);
+  // A transfer is not spending, so it must never eat a budget.
+  const transactions = getTransactions(accountId, walletId, { includeTransfers: false });
   const budgets = getBudgets(accountId, walletId);
 
   const rows = budgets.map((b) => buildRow(b, transactions, date));
@@ -81,5 +82,5 @@ export function budgetStatus(accountId, walletId, date = new Date()) {
 export function budgetForCategory(accountId, walletId, category, date = new Date()) {
   const budget = getBudgets(accountId, walletId).find((b) => b.category === category);
   if (!budget) return null;
-  return buildRow(budget, getTransactions(accountId, walletId), date);
+  return buildRow(budget, getTransactions(accountId, walletId, { includeTransfers: false }), date);
 }
