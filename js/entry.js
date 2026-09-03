@@ -6,8 +6,11 @@ import {
   updateTransaction,
   deleteTransaction,
   getCustomCategories,
+  getSubcategories,
   addCustomCategory,
   getCategoryPrefs,
+  categoryTarget,
+  prefKey,
 } from './storage.js';
 import { scheduleSync } from './filesync.js';
 import { budgetForCategory, budgetStatus } from './budget.js';
@@ -24,7 +27,7 @@ import {
   LIMITS,
 } from './validate.js';
 import { formatBaht, formatThaiDate } from './format.js';
-import { CATEGORIES } from './categories.js';
+import { CATEGORIES, iconForCategory } from './categories.js';
 import { transactionRow } from './txrow.js';
 import { confirmDeleteCategory } from './cats.js';
 
@@ -33,7 +36,9 @@ const $ = (id) => document.getElementById(id);
 
 let ctx = null; // { accountId, walletId }
 let currentType = 'income';
-let selectedCategory = null;
+// What is picked is a stored category record, not just a name: a subcategory has a
+// parent, and the transaction has to record both.
+let selected = null; // { parent, name, category, sub }
 let lastSavedCategory = null;
 let editingId = null;
 
@@ -85,11 +90,11 @@ export function renderEntry() {
 
 // Home's pinned chips call this before switching page, so the form is already
 // filled in by the time it appears.
-export function prefillEntry({ type, category }) {
+export function prefillEntry({ type, parent, name }) {
   setType(type);
   $('amount-input').value = '';
   setQuantity(1);
-  selectCategory(category);
+  selectCategory({ parent, name });
   const amount = $('amount-input');
   amount.focus();
   amount.select();
@@ -99,7 +104,7 @@ export function prefillEntry({ type, category }) {
 
 function setType(type) {
   currentType = type;
-  selectedCategory = null;
+  selected = null;
   lastSavedCategory = null;
   setQuantity(1);
 
@@ -173,49 +178,65 @@ function renderCategories() {
   const grid = $('category-grid');
   grid.innerHTML = '';
 
-  const custom = getCustomCategories(ctx.accountId, currentType);
-  const builtIn = CATEGORIES[currentType];
+  const prefs = getCategoryPrefs(ctx.accountId, currentType);
 
-  for (const cat of builtIn) {
-    grid.appendChild(categoryButton(cat.icon, cat.name));
+  // Each main category is followed straight away by its own subcategories, so the
+  // grid groups itself without needing headings.
+  for (const main of CATEGORIES[currentType]) {
+    grid.appendChild(categoryButton({ parent: main.name, name: main.name }, main.icon, prefs));
+
+    for (const sub of getSubcategories(ctx.accountId, currentType, main.name)) {
+      const btn = categoryButton(sub, main.icon, prefs);
+      btn.classList.add('category-sub');
+      attachRemove(btn, sub);
+      grid.appendChild(btn);
+    }
   }
 
-  for (const cat of custom) {
-    const btn = categoryButton('', cat.name);
+  // Categories that belong to no main category come last, still without an emoji.
+  for (const cat of getCustomCategories(ctx.accountId, currentType).filter((c) => !c.parent)) {
+    const btn = categoryButton(cat, '', prefs);
     btn.classList.add('category-custom');
-
-    const remove = document.createElement('span');
-    remove.className = 'cat-remove';
-    remove.textContent = '×';
-    remove.title = 'ลบหมวดหมู่นี้';
-    remove.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeCustomCategory(cat);
-    });
-
-    btn.appendChild(remove);
+    attachRemove(btn, cat);
     grid.appendChild(btn);
   }
 
   grid.appendChild(otherButton());
 }
 
-function categoryButton(icon, name) {
+function attachRemove(btn, record) {
+  const remove = document.createElement('span');
+  remove.className = 'cat-remove';
+  remove.textContent = '×';
+  remove.title = 'ลบหมวดหมู่นี้';
+  remove.addEventListener('click', (e) => {
+    e.stopPropagation();
+    removeCustomCategory(record);
+  });
+  btn.appendChild(remove);
+}
+
+// `record` is { parent, name }. A subcategory borrows the main category's emoji and
+// shows its own name, which is how a row of them reads as one group.
+function categoryButton(record, icon, prefs) {
+  const target = categoryTarget(record);
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'category-btn';
-  if (selectedCategory === name) {
+
+  if (selected && selected.category === target.category && selected.sub === target.sub) {
     btn.classList.add('selected');
     if (currentType === 'expense') btn.classList.add('expense-selected');
   }
+
   btn.innerHTML = icon
     ? `<span class="cat-icon">${icon}</span><span class="cat-name"></span>`
     : '<span class="cat-name"></span>';
-  btn.querySelector('.cat-name').textContent = name;
+  btn.querySelector('.cat-name').textContent = record.name;
 
   // A category with a unit cost says so on its button, so the number that lands in
   // the amount box is never a surprise.
-  const cost = (getCategoryPrefs(ctx.accountId, currentType).get(name) || {}).cost || 0;
+  const cost = (prefs.get(prefKey(record.parent, record.name)) || {}).cost || 0;
   if (cost > 0) {
     btn.classList.add('has-cost');
     const tag = document.createElement('span');
@@ -224,17 +245,19 @@ function categoryButton(icon, name) {
     btn.appendChild(tag);
   }
 
-  btn.addEventListener('click', () => selectCategory(name));
+  btn.addEventListener('click', () => selectCategory(record));
   return btn;
 }
 
 // Choosing a category fills in its unit cost when one is set. Typing over the
 // number is still allowed: the cost is a starting point, not a lock.
-function selectCategory(name) {
-  selectedCategory = name;
+function selectCategory(record) {
+  selected = { parent: record.parent || '', name: record.name, ...categoryTarget(record) };
   $('custom-category-wrap').hidden = true;
 
-  const cost = (getCategoryPrefs(ctx.accountId, currentType).get(name) || {}).cost || 0;
+  const cost =
+    (getCategoryPrefs(ctx.accountId, currentType).get(prefKey(record.parent, record.name)) || {})
+      .cost || 0;
   if (cost > 0) $('amount-input').value = String(cost);
 
   renderCategories();
@@ -244,7 +267,7 @@ function selectCategory(name) {
 
 function removeCustomCategory(cat) {
   if (!confirmDeleteCategory(ctx.accountId, cat)) return;
-  if (selectedCategory === cat.name) selectedCategory = null;
+  if (selected && selected.name === cat.name) selected = null;
   if (lastSavedCategory === cat.name) lastSavedCategory = null;
   renderEntry();
 }
@@ -259,10 +282,30 @@ function otherButton() {
     wrap.hidden = false;
     $('custom-category-input').value = '';
     $('save-as-category').checked = true;
+    renderParentChoices();
     renderSuggestions('');
     $('custom-category-input').focus();
   });
   return btn;
+}
+
+// A typed category can stand on its own or carry on from a main category, which is
+// the second way of making a subcategory.
+function renderParentChoices() {
+  const select = $('custom-category-parent');
+  select.innerHTML = '';
+
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = 'ไม่สังกัดหมวดหลัก';
+  select.appendChild(none);
+
+  for (const main of CATEGORIES[currentType]) {
+    const option = document.createElement('option');
+    option.value = main.name;
+    option.textContent = `${main.icon} ${main.name}`;
+    select.appendChild(option);
+  }
 }
 
 // Matches what is being typed against categories the user already saved, so a
@@ -272,20 +315,19 @@ function renderSuggestions(query) {
   const q = query.trim().toLowerCase();
 
   const matches = getCustomCategories(ctx.accountId, currentType)
-    .map((c) => c.name)
-    .filter((name) => (q ? name.toLowerCase().includes(q) : true))
-    .filter((name) => name.toLowerCase() !== q)
+    .filter((c) => (q ? c.name.toLowerCase().includes(q) : true))
+    .filter((c) => c.name.toLowerCase() !== q)
     .slice(0, 6);
 
   box.innerHTML = '';
   box.hidden = matches.length === 0;
 
-  for (const name of matches) {
+  for (const record of matches) {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'suggestion-chip';
-    chip.textContent = name;
-    chip.addEventListener('click', () => selectCategory(name));
+    chip.textContent = record.parent ? `${record.parent} · ${record.name}` : record.name;
+    chip.addEventListener('click', () => selectCategory(record));
     box.appendChild(chip);
   }
 }
@@ -298,10 +340,12 @@ function commitCustomCategory() {
     showEntryError(check.error);
     return null;
   }
+
+  const parent = $('custom-category-parent').value || '';
   if ($('save-as-category').checked) {
-    addCustomCategory(ctx.accountId, currentType, check.value);
+    addCustomCategory(ctx.accountId, currentType, check.value, parent);
   }
-  selectCategory(check.value);
+  selectCategory({ parent, name: check.value });
   return check.value;
 }
 
@@ -321,7 +365,7 @@ function renderBudgetHint() {
 
   // After a save the selection clears, but the budget for what was just recorded
   // is exactly what the user wants to see, so fall back to it.
-  const category = selectedCategory || lastSavedCategory;
+  const category = (selected && selected.category) || lastSavedCategory;
 
   if (currentType !== 'expense' || !category) {
     hideBudgetHint(el);
@@ -404,7 +448,7 @@ function saveEntry() {
     return;
   }
 
-  if (!selectedCategory) {
+  if (!selected) {
     showEntryError('กรุณาเลือกหมวดหมู่');
     return;
   }
@@ -426,7 +470,8 @@ function saveEntry() {
     type: currentType,
     amount: amountCheck.value,
     quantity: qtyCheck.value,
-    category: selectedCategory,
+    category: selected.category,
+    sub: selected.sub,
     note: noteCheck.value,
     date: dateCheck.value,
   });
@@ -436,8 +481,8 @@ function saveEntry() {
   $('note-input').value = '';
   $('date-input').value = todayISO();
   setQuantity(1);
-  lastSavedCategory = currentType === 'expense' ? selectedCategory : null;
-  selectedCategory = null;
+  lastSavedCategory = currentType === 'expense' ? selected.category : null;
+  selected = null;
 
   renderEntry();
   flashSaved();

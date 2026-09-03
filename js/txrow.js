@@ -19,7 +19,9 @@ export function transactionRow(tx, { onDelete, onOpen } = {}) {
 
   const cat = document.createElement('div');
   cat.className = 'recent-cat';
-  cat.textContent = tx.category;
+  // The main category first, then the subcategory it was recorded under, so the row
+  // says both what group the money went to and exactly what it was.
+  cat.textContent = tx.sub ? `${tx.category} · ${tx.sub}` : tx.category;
 
   // A count only earns its place when it is more than one.
   if (tx.quantity > 1) {

@@ -119,12 +119,42 @@ export function isDirty(accountId) {
 
 /* ---------- Account data blob ---------- */
 
+// Records written before subcategories existed have no parent. A record named after
+// a built-in becomes that built-in's own settings; anything else stands alone. This
+// runs on every read and is safe to repeat, because it only fills a missing field.
+function withParents(list) {
+  for (const c of list) {
+    if (c.parent === undefined) {
+      c.parent = isBuiltInCategory(c.kind, c.name) ? c.name : '';
+    }
+  }
+  return list;
+}
+
 export function getData(accountId) {
-  return { ...EMPTY_DATA, ...readJSON(dataKey(accountId), EMPTY_DATA) };
+  const data = { ...EMPTY_DATA, ...readJSON(dataKey(accountId), EMPTY_DATA) };
+  withParents(data.categories);
+  return data;
 }
 
 export function saveData(accountId, data) {
   writeJSON(dataKey(accountId), data);
+}
+
+// Categories written before V1.4.1 carry no parent. Filling it in on read is not
+// enough on its own: the CSV writer reads the raw data, and exporting a record with
+// an empty parent would turn a built-in's settings into a standalone category named
+// after that built-in, which draws a duplicate button on the next import. So the
+// normalisation is written back once, at login.
+export function migrateCategories(accountId) {
+  const raw = readJSON(dataKey(accountId), null);
+  if (!raw || !Array.isArray(raw.categories)) return 0;
+
+  const missing = raw.categories.filter((c) => c.parent === undefined).length;
+  if (missing === 0) return 0;
+
+  saveData(accountId, getData(accountId));
+  return missing;
 }
 
 // Physically drops tombstones that are old enough that no other device could
@@ -246,47 +276,88 @@ export function deleteGoal(accountId, id) {
 }
 
 /* ---------- Categories ---------- */
-// One record type covers two jobs. A record whose name is not one of the built-in
-// categories IS a category the user created. A record whose name matches a built-in
-// only carries that built-in's settings, the unit cost and whether it is pinned to
-// Home, so the entry grid must not draw a second button for it.
+// Categories are two levels. A main category is one of the built-in list and exists
+// in code, not in storage. Every stored record is a SUBCATEGORY of one of them, or a
+// standalone category the user made up.
 //
-// Nothing marks the difference on disk: the name decides, which keeps the CSV
-// honest and means an older file needs no migration.
+//   parent  the main category it belongs to, or '' when it belongs to none
+//   name    what the button says; when the user leaves it blank it becomes the parent
+//
+// The unit cost and the pin live down here rather than on the main category, because
+// one main category holds many things at many prices, which is exactly the problem
+// this level solves.
+//
+// A subcategory whose name equals its parent is not a second button: it IS the main
+// category's own cost and pin. That one rule is what keeps the entry grid from
+// showing the same category twice, and makes the older single-cost behaviour a
+// special case of this model rather than a second mechanism.
 
-const settingsOnly = (c) => isBuiltInCategory(c.kind, c.name);
+export const sameName = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 
-// Only the categories the user typed themselves. This is what the entry grid draws
-// and what the cap counts.
+// True for the record that carries a main category's own settings.
+export const isSelfRecord = (c) => !!c.parent && sameName(c.parent, c.name);
+
+function categoryRecords(accountId) {
+  return withParents(alive(getData(accountId).categories));
+}
+
+// Every category the entry grid draws: subcategories and standalone ones, but not
+// the records that only hold a main category's own settings.
 export function getCustomCategories(accountId, kind) {
-  const list = alive(getData(accountId).categories).filter((c) => !settingsOnly(c));
+  const list = categoryRecords(accountId).filter((c) => !isSelfRecord(c));
   return kind ? list.filter((c) => c.kind === kind) : list;
 }
 
-// Every stored record including the settings-only ones, keyed by name, so a caller
-// can ask what a category costs without caring where the name came from.
+// Subcategories of one main category, in creation order so the grid is stable.
+export function getSubcategories(accountId, kind, parent) {
+  return categoryRecords(accountId)
+    .filter((c) => c.kind === kind && sameName(c.parent, parent) && !isSelfRecord(c))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+// The cost and pin of every stored record, keyed by "parent|name" so a main
+// category's own settings and a subcategory of the same name never collide.
+export const prefKey = (parent, name) => `${parent || ''}|${name}`;
+
 export function getCategoryPrefs(accountId, kind) {
   const map = new Map();
-  for (const c of alive(getData(accountId).categories)) {
+  for (const c of categoryRecords(accountId)) {
     if (kind && c.kind !== kind) continue;
-    map.set(c.name, { cost: c.cost || 0, pinned: !!c.pinned });
+    map.set(prefKey(c.parent, c.name), { cost: c.cost || 0, pinned: !!c.pinned });
   }
   return map;
 }
 
+// What a transaction should record for a category. A main category's own settings
+// carry no subcategory name, so a row never reads "ยา · ยา".
+export function categoryTarget(record) {
+  const parent = record.parent || '';
+  return {
+    category: parent || record.name,
+    sub: parent && !sameName(parent, record.name) ? record.name : '',
+  };
+}
+
 export function getPinnedCategories(accountId, kind) {
-  return alive(getData(accountId).categories)
+  return categoryRecords(accountId)
     .filter((c) => c.pinned && (!kind || c.kind === kind))
-    .map((c) => ({ kind: c.kind, name: c.name, cost: c.cost || 0 }))
+    .map((c) => ({
+      kind: c.kind,
+      parent: c.parent || '',
+      name: c.name,
+      cost: c.cost || 0,
+      ...categoryTarget(c),
+    }))
     .sort((a, b) => a.name.localeCompare(b.name, 'th'));
 }
 
-// Finds the record for a name, creating it if this is the first setting stored
-// against it. Used by both the cost and the pin writers.
-function upsertCategory(data, kind, name, patch) {
+// Finds the record for a parent and name, creating it on the first setting stored
+// against it. Used by the cost writer, the pin writer and the subcategory form.
+function upsertCategory(data, kind, parent, name, patch) {
   const stamp = now();
+  withParents(data.categories);
   const existing = alive(data.categories).find(
-    (c) => c.kind === kind && c.name.toLowerCase() === name.toLowerCase()
+    (c) => c.kind === kind && sameName(c.parent, parent || '') && sameName(c.name, name)
   );
 
   if (existing) {
@@ -297,6 +368,7 @@ function upsertCategory(data, kind, name, patch) {
   const record = {
     id: uid(),
     kind,
+    parent: parent || '',
     name,
     cost: 0,
     pinned: false,
@@ -308,41 +380,83 @@ function upsertCategory(data, kind, name, patch) {
   return record;
 }
 
-export function setCategoryCost(accountId, kind, name, cost) {
+export function setCategoryCost(accountId, kind, parent, name, cost) {
   const data = getData(accountId);
-  const record = upsertCategory(data, kind, name, { cost: Math.max(0, Number(cost) || 0) });
+  const record = upsertCategory(data, kind, parent, name, {
+    cost: Math.max(0, Number(cost) || 0),
+  });
   saveData(accountId, data);
   return record;
 }
 
-export function setCategoryPinned(accountId, kind, name, pinned) {
+export function setCategoryPinned(accountId, kind, parent, name, pinned) {
   const data = getData(accountId);
-  const record = upsertCategory(data, kind, name, { pinned: !!pinned });
+  const record = upsertCategory(data, kind, parent, name, { pinned: !!pinned });
   saveData(accountId, data);
   return record;
 }
 
-export function addCustomCategory(accountId, kind, name) {
+// A subcategory with no name of its own takes the parent's, which is how the user
+// says "this main category, at this price".
+export function addSubcategory(accountId, kind, parent, name, cost = 0) {
+  const clean = String(name || '').trim() || parent;
+  if (!parent || !clean) return { ok: false, error: 'ต้องเลือกหมวดหลักก่อน' };
+
+  const data = getData(accountId);
+  withParents(data.categories);
+  const clash = alive(data.categories).find(
+    (c) => c.kind === kind && sameName(c.parent, parent) && sameName(c.name, clean)
+  );
+  if (clash) {
+    return {
+      ok: false,
+      error:
+        clean === parent
+          ? `หมวด "${parent}" มีราคาของตัวเองอยู่แล้ว ถ้าจะเพิ่มอีกอันให้ตั้งชื่อหมวดย่อยด้วย`
+          : `มีหมวดย่อยชื่อ "${clean}" ใน "${parent}" อยู่แล้ว`,
+    };
+  }
+
+  const record = upsertCategory(data, kind, parent, clean, {
+    cost: Math.max(0, Number(cost) || 0),
+  });
+  saveData(accountId, data);
+  return { ok: true, record };
+}
+
+// Typing a category on the entry form. With no parent it stands on its own; with one
+// it becomes a subcategory, which is the "carry on from an existing category" case.
+export function addCustomCategory(accountId, kind, name, parent = '') {
   const clean = name.trim();
   if (!clean) return null;
 
-  // A name that already belongs to a built-in category would draw a duplicate
+  // Standing a category on its own under a built-in's name would draw a duplicate
   // button, so it is refused rather than quietly accepted.
-  if (isBuiltInCategory(kind, clean)) return null;
+  if (!parent && isBuiltInCategory(kind, clean)) return null;
 
   const data = getData(accountId);
+  withParents(data.categories);
   const existing = alive(data.categories).find(
-    (c) => c.kind === kind && c.name.toLowerCase() === clean.toLowerCase()
+    (c) => c.kind === kind && sameName(c.parent, parent || '') && sameName(c.name, clean)
   );
   if (existing) return existing;
 
   const stamp = now();
-  const record = { id: uid(), kind, name: clean, cost: 0, pinned: false, createdAt: stamp, updatedAt: stamp };
+  const record = {
+    id: uid(),
+    kind,
+    parent: parent || '',
+    name: clean,
+    cost: 0,
+    pinned: false,
+    createdAt: stamp,
+    updatedAt: stamp,
+  };
   data.categories.push(record);
 
-  // Keep the grid manageable by dropping the oldest once the cap is passed. Only
-  // the user's own categories count: a built-in's settings take no room in the grid.
-  const ofKind = alive(data.categories).filter((c) => c.kind === kind && !settingsOnly(c));
+  // Keep the grid manageable by dropping the oldest once the cap is passed. A main
+  // category's own settings take no room in the grid, so they do not count.
+  const ofKind = alive(data.categories).filter((c) => c.kind === kind && !isSelfRecord(c));
   if (ofKind.length > LIMITS.MAX_CUSTOM_CATEGORIES) {
     ofKind
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
@@ -357,27 +471,52 @@ export function addCustomCategory(accountId, kind, name) {
   return record;
 }
 
-// How many live transactions still use this category, so the confirm prompt can
-// say what is about to change.
-export function countCategoryUsage(accountId, name) {
-  return alive(getData(accountId).transactions).filter((t) => t.category === name).length;
+// Which transactions belong to one stored category record. A main category's own
+// settings match the rows with no subcategory; a subcategory matches its own rows;
+// a standalone category matches by name.
+function matchesRecord(t, record) {
+  if (record.parent) {
+    if (t.category !== record.parent) return false;
+    return isSelfRecord(record) ? !t.sub : t.sub === record.name;
+  }
+  return t.category === record.name;
 }
 
-// Deleting a category must not leave old records meaningless, so every transaction
-// and budget that used it is rewritten from "น้ำมัน" to "อื่นๆ (น้ำมัน)". The history
-// keeps its detail and the budget keeps tracking instead of silently vanishing.
+// How many live transactions still use this category, so the confirm prompt can
+// say what is about to change.
+export function countCategoryUsage(accountId, record) {
+  return alive(getData(accountId).transactions).filter((t) => matchesRecord(t, record)).length;
+}
+
+// Deleting a category must not leave old records meaningless.
+//
+// A standalone category is the only case that rewrites history: its transactions and
+// budgets go from "น้ำมัน" to "อื่นๆ (น้ำมัน)" so nothing loses its meaning and the
+// budget keeps tracking instead of silently vanishing.
+//
+// A subcategory rewrites nothing. Its transactions still name a main category that
+// exists, and the subcategory label they carry still reads correctly in the history.
+// A main category's own settings cannot be deleted at all, only cleared.
 export function deleteCustomCategory(accountId, id) {
   const data = getData(accountId);
   const stamp = now();
+  withParents(data.categories);
   const target = data.categories.find((c) => c.id === id);
   if (!target) return { renamedTransactions: 0, renamedBudgets: 0 };
 
-  // A built-in category cannot be deleted, only stripped of its settings, or the
-  // rewrite below would rename records that still have a button to belong to.
-  if (settingsOnly(target)) {
+  if (isSelfRecord(target)) {
     target.cost = 0;
     target.pinned = false;
     target.updatedAt = stamp;
+    saveData(accountId, data);
+    return { renamedTransactions: 0, renamedBudgets: 0 };
+  }
+
+  data.categories = data.categories.map((c) =>
+    c.id === id ? { ...c, deletedAt: stamp, updatedAt: stamp } : c
+  );
+
+  if (target.parent) {
     saveData(accountId, data);
     return { renamedTransactions: 0, renamedBudgets: 0 };
   }
@@ -386,10 +525,6 @@ export function deleteCustomCategory(accountId, id) {
   const to = `อื่นๆ (${from})`;
   let renamedTransactions = 0;
   let renamedBudgets = 0;
-
-  data.categories = data.categories.map((c) =>
-    c.id === id ? { ...c, deletedAt: stamp, updatedAt: stamp } : c
-  );
 
   data.transactions = data.transactions.map((t) => {
     if (t.deletedAt || t.category !== from) return t;
