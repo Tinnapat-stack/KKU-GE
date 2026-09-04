@@ -43,9 +43,18 @@ const COLUMNS = [
   'cycle_value',
   'last_run',
   'active',
+  // Added in V1.4.4 for the savings ledger and the goal lifecycle.
+  'goal_id',
+  'status',
+  'plan_per_day',
+  'spend_category',
+  'spend_sub',
+  'paid_tx',
 ];
 
-const RECORD_KINDS = new Set(['wallet', 'tx', 'goal', 'category', 'budget', 'recurring']);
+const RECORD_KINDS = new Set([
+  'wallet', 'tx', 'goal', 'category', 'budget', 'recurring', 'saving',
+]);
 
 function escapeField(value) {
   const s = value === undefined || value === null ? '' : String(value);
@@ -56,7 +65,15 @@ function row(values) {
   return COLUMNS.map((col) => escapeField(values[col])).join(',');
 }
 
-export function serializeAccount({ wallets, transactions, goals, categories, budgets, recurring }) {
+export function serializeAccount({
+  wallets,
+  transactions,
+  goals,
+  categories,
+  budgets,
+  recurring,
+  savings,
+}) {
   const lines = [COLUMNS.join(',')];
 
   for (const w of wallets) {
@@ -104,6 +121,11 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         target_amount: g.targetAmount,
         saved_amount: g.savedAmount,
         target_date: g.targetDate,
+        status: g.status || 'saving',
+        plan_per_day: g.planPerDay || '',
+        spend_category: g.spendCategory || '',
+        spend_sub: g.spendSub || '',
+        paid_tx: g.paidTxId || '',
         created_at: g.createdAt,
         updated_at: g.updatedAt,
         deleted_at: g.deletedAt,
@@ -162,6 +184,23 @@ export function serializeAccount({ wallets, transactions, goals, categories, bud
         created_at: r.createdAt,
         updated_at: r.updatedAt,
         deleted_at: r.deletedAt,
+      })
+    );
+  }
+
+  for (const s of savings || []) {
+    lines.push(
+      row({
+        record: 'saving',
+        id: s.id,
+        wallet_id: s.walletId,
+        goal_id: s.goalId,
+        date: s.date,
+        amount: s.amount,
+        note: s.note,
+        created_at: s.createdAt,
+        updated_at: s.updatedAt,
+        deleted_at: s.deletedAt,
       })
     );
   }
@@ -258,6 +297,7 @@ export function parseCSV(text) {
     categories: [],
     budgets: [],
     recurring: [],
+    savings: [],
     skipped: [],
   };
   const get = (r, col) => (cols[col] === -1 ? '' : (r[cols[col]] ?? '').trim());
@@ -354,6 +394,43 @@ export function parseCSV(text) {
         targetAmount: target,
         savedAmount: saved,
         targetDate: isISODate(targetDate) ? targetDate : '',
+        // A file written before the lifecycle existed has no status; such a goal is
+        // still saving, and its total is already in savedAmount for the migration.
+        status: get(r, 'status') || 'saving',
+        planPerDay: parseAmount(get(r, 'plan_per_day')) || 0,
+        spendCategory: get(r, 'spend_category').slice(0, LIMITS.NAME_MAX),
+        spendSub: get(r, 'spend_sub').slice(0, LIMITS.NAME_MAX),
+        paidTxId: get(r, 'paid_tx'),
+        savedMigrated: cols.goal_id !== -1,
+      });
+      return;
+    }
+
+    if (kind === 'saving') {
+      const amount = parseAmount(get(r, 'amount'));
+      const date = get(r, 'date');
+      const goalId = get(r, 'goal_id');
+
+      if (!goalId) {
+        skip(line, 'การออมไม่มีเป้าหมายที่ผูกอยู่');
+        return;
+      }
+      if (!isISODate(date)) {
+        skip(line, `วันที่ออมไม่ถูกต้อง "${date}"`);
+        return;
+      }
+      if (amount === null || amount <= 0) {
+        skip(line, `ยอดออมไม่ถูกต้อง "${get(r, 'amount')}"`);
+        return;
+      }
+
+      result.savings.push({
+        ...base,
+        goalId,
+        walletId: get(r, 'wallet_id'),
+        date,
+        amount,
+        note: get(r, 'note').slice(0, LIMITS.NOTE_MAX),
       });
       return;
     }
@@ -453,7 +530,8 @@ export function parseCSV(text) {
     result.goals.length +
     result.categories.length +
     result.budgets.length +
-    result.recurring.length;
+    result.recurring.length +
+    result.savings.length;
 
   if (total === 0) {
     const reason = result.skipped.length

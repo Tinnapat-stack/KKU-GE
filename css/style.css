@@ -1922,3 +1922,179 @@ main#pages { flex: 1; padding: 10px 16px 96px; }
 
   @page { margin: 14mm; }
 }
+
+/* ---------- Home calendar ---------- */
+/* A month cell on a 400px screen fits a number and a few dots and nothing else, so
+   the names live in the detail panel that opens on a tap. A week has seven rows and
+   room to spell everything out, so it does. */
+
+.cal-tabs { display: flex; gap: 4px; }
+.cal-tab {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--muted-light);
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.cal-tab.active { color: var(--gold); border-color: rgba(224,180,69,0.5); background: var(--gold-soft); }
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.cal-title { flex: 1; text-align: center; font-size: 13.5px; font-weight: 600; }
+.cal-today-btn {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--gold);
+  background: var(--gold-soft);
+  border: 1px solid rgba(224,180,69,0.4);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.cal-month {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.cal-weekday {
+  font-size: 10.5px;
+  color: var(--muted-light);
+  text-align: center;
+  padding-bottom: 4px;
+}
+
+.cal-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 42px;
+  padding: 5px 2px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-light);
+  background: var(--glass);
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+.cal-cell.quiet { background: rgba(255,255,255,0.02); color: var(--muted-light); }
+.cal-cell.today { border-color: rgba(224,180,69,0.55); }
+.cal-cell.selected { background: var(--gold-soft); border-color: var(--gold); }
+.cal-blank { background: none; border: none; cursor: default; min-height: 0; }
+
+.cal-day { font-size: 12.5px; line-height: 1.2; }
+.cal-dots { display: flex; gap: 3px; min-height: 6px; }
+
+.cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.dot-income { background: #7fd8ac; }
+.dot-expense { background: #f19a97; }
+.dot-saving { background: var(--gold); }
+
+.cal-detail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.cal-detail-head { font-size: 12.5px; color: var(--muted-light); margin-bottom: 8px; }
+.cal-detail-empty { margin: 0; font-size: 12px; color: var(--muted-light); }
+
+.cal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  font-size: 12.5px;
+}
+.cal-item + .cal-item { border-top: 1px solid rgba(255,255,255,0.06); }
+.cal-item-name { flex: 1; min-width: 0; }
+.cal-item-amount { font-weight: 600; white-space: nowrap; }
+.kind-income .cal-item-amount { color: #7fd8ac; }
+.kind-expense .cal-item-amount { color: #f19a97; }
+.kind-saving .cal-item-amount { color: var(--gold); }
+
+.cal-week { display: flex; flex-direction: column; gap: 4px; }
+.cal-week-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  padding: 9px 10px;
+  background: var(--glass);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+.cal-week-row.today { border-color: rgba(224,180,69,0.55); }
+.cal-week-label { font-size: 12px; color: var(--muted-light); }
+.cal-week-items { min-width: 0; }
+.cal-week-items .cal-item { padding: 3px 0; }
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--muted-light);
+}
+.cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ---------- Goal planning ---------- */
+
+.goal-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--muted-light);
+}
+.goal-catchup.behind { color: #f19a97; }
+.goal-catchup.ahead { color: #7fd8ac; }
+
+.goal-today {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+.goal-today.ticked { border-color: rgba(224,180,69,0.45); background: var(--gold-soft); }
+.goal-tick { width: 20px; height: 20px; flex-shrink: 0; }
+.goal-today-label { flex: 1; font-size: 13px; }
+.goal-today-amount { width: 110px; padding: 8px 10px; }
+
+.goal-streak { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
+.goal-streak-day {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--glass-border);
+}
+.goal-streak-day.met { background: var(--gold); border-color: var(--gold); }
+.goal-streak-day.partial { background: rgba(224,180,69,0.4); }
+.goal-streak-note { margin-left: 6px; font-size: 11px; color: var(--muted-light); }
+
+.goal-payout { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.goal-payout-note { margin: 0; font-size: 12px; color: var(--muted-light); }
+.goal-paid { margin-top: 10px; font-size: 12.5px; color: var(--gold); }
+
+.goal-badge.badge-paid { background: var(--gold-soft); color: var(--gold); }
+.goal-card.status-done { opacity: 0.85; }

@@ -11,6 +11,7 @@ import {
   deleteWallet,
   purgeTombstones,
   migrateCategories,
+  migrateSavings,
   rehomeOrphans,
   previewImport,
   mergeImported,
@@ -30,6 +31,7 @@ import { initCats, setCatsContext, openCats } from './cats.js';
 import { initTransfer, setTransferContext, openTransfer } from './transfer.js';
 import { initRecurring, setRecurringContext, checkDue } from './recurring.js';
 import { initReport, setReportContext, openReport } from './report.js';
+import { initCalendar, setCalendarContext } from './calendar.js';
 import { APP_VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
@@ -112,6 +114,7 @@ function enterApp(account, preferredWalletId) {
 
   purgeTombstones(account.id);
   migrateCategories(account.id);
+  migrateSavings(account.id);
   const rehomed = rehomeOrphans(account.id);
 
   const wallets = getWallets(account.id);
@@ -126,12 +129,13 @@ function enterApp(account, preferredWalletId) {
   if (!pagesReady) {
     initEntry(ctx);
     initAnalytics(ctx);
-    initPlan(ctx);
+    initPlan(ctx, renderAll);
     initHome(ctx, showPage, createWallet);
     initCats(ctx, renderAll);
     initTransfer(ctx, renderAll);
     initRecurring(ctx, renderAll);
     initReport(ctx);
+    initCalendar(ctx);
     initShell();
     pagesReady = true;
   }
@@ -161,6 +165,7 @@ function pushContext() {
   setTransferContext(ctx);
   setRecurringContext(ctx);
   setReportContext(ctx);
+  setCalendarContext(ctx);
 }
 
 function renderAll() {

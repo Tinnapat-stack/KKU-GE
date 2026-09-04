@@ -8,6 +8,10 @@ import {
   setBudget,
   deleteBudget,
   getCustomCategories,
+  getSubcategories,
+  setSaving,
+  deleteSaving,
+  getSavings,
   getRecurring,
   addRecurring,
   updateRecurring,
@@ -15,22 +19,30 @@ import {
   TOTAL_BUDGET,
 } from './storage.js';
 import { budgetStatus, LEVEL_LABELS } from './budget.js';
+import { goalProgress, perDayFor, recentDays, payOutGoal, STATUS } from './goals.js';
+import { nextOccurrence } from './recurring.js';
 import { CATEGORIES, EXPENSE_CATEGORY_NAMES } from './categories.js';
 import { scheduleSync } from './filesync.js';
 import { validateAmount, validateName, validateGoalDate, todayISO } from './validate.js';
-import { formatBaht, formatThaiDateLong } from './format.js';
+import { formatBaht, formatThaiDate, formatThaiDateLong } from './format.js';
+import { showToast } from './toast.js';
 
 const $ = (id) => document.getElementById(id);
 
 let ctx = null;
+let onGoalPaid = null;
 
-export function initPlan(context) {
+export function initPlan(context, goalPaid) {
   ctx = context;
+  onGoalPaid = goalPaid;
 
   $('add-goal-btn').addEventListener('click', () => toggleForm(true));
   $('goal-cancel-btn').addEventListener('click', () => toggleForm(false));
   $('goal-save-btn').addEventListener('click', saveGoal);
   $('goal-date-input').min = todayISO();
+  $('goal-date-input').addEventListener('change', renderPlanHint);
+  $('goal-target-input').addEventListener('input', renderPlanHint);
+  $('goal-category').addEventListener('change', () => renderGoalSubs($('goal-sub'), $('goal-category').value));
 
   $('add-budget-btn').addEventListener('click', () => toggleBudgetForm(true));
   $('budget-cancel-btn').addEventListener('click', () => toggleBudgetForm(false));
@@ -40,6 +52,7 @@ export function initPlan(context) {
   $('recurring-cancel-btn').addEventListener('click', () => toggleRecurringForm(false));
   $('recurring-save-btn').addEventListener('click', saveRecurring);
   $('recurring-type').addEventListener('change', renderRecurringCategories);
+  $('recurring-category').addEventListener('change', renderRecurringSubs);
   $('recurring-cycle').addEventListener('change', renderCycleFields);
 }
 
@@ -56,8 +69,74 @@ function toggleForm(show) {
     $('goal-name-input').value = '';
     $('goal-target-input').value = '';
     $('goal-date-input').value = '';
+    renderGoalCategories();
+    renderPlanHint();
     $('goal-name-input').focus();
   }
+}
+
+// The spending category can be chosen now or left until the money is actually spent,
+// so the first option is deliberately "decide later".
+function renderGoalCategories() {
+  const select = $('goal-category');
+  select.innerHTML = '';
+
+  const later = document.createElement('option');
+  later.value = '';
+  later.textContent = 'ยังไม่เลือก เลือกตอนใช้เงินก็ได้';
+  select.appendChild(later);
+
+  for (const cat of CATEGORIES.expense) {
+    const option = document.createElement('option');
+    option.value = cat.name;
+    option.textContent = `${cat.icon} ${cat.name}`;
+    select.appendChild(option);
+  }
+
+  renderGoalSubs($('goal-sub'), '');
+}
+
+function renderGoalSubs(select, parent) {
+  select.innerHTML = '';
+  const subs = parent ? getSubcategories(ctx.accountId, 'expense', parent) : [];
+  select.hidden = subs.length === 0;
+  if (subs.length === 0) return;
+
+  const any = document.createElement('option');
+  any.value = '';
+  any.textContent = 'ไม่ระบุหมวดย่อย';
+  select.appendChild(any);
+
+  for (const sub of subs) {
+    const option = document.createElement('option');
+    option.value = sub.name;
+    option.textContent = sub.name;
+    select.appendChild(option);
+  }
+}
+
+// Shows the daily split as soon as there is an amount and a date, which is what turns
+// "เก็บ 1,000 ใน 15 วัน" into something a person can actually follow.
+function renderPlanHint() {
+  const hint = $('goal-plan-hint');
+  const amount = Number($('goal-target-input').value);
+  const date = $('goal-date-input').value;
+
+  if (!(amount > 0) || !date) {
+    hint.hidden = true;
+    hint.textContent = '';
+    return;
+  }
+
+  const perDay = perDayFor(amount, todayISO(), date);
+  if (!perDay) {
+    hint.hidden = true;
+    return;
+  }
+
+  const days = Math.ceil(amount / perDay);
+  hint.textContent = `แผนคือออมวันละ ${formatBaht(perDay)} ประมาณ ${days} วันก็ครบ`;
+  hint.hidden = false;
 }
 
 function showGoalError(message) {
@@ -90,6 +169,11 @@ function saveGoal() {
     name: nameCheck.value,
     targetAmount: targetCheck.value,
     targetDate: dateCheck.value,
+    // The plan is fixed at creation. The card works out separately what today
+    // actually demands, so a missed day changes the advice but not the promise.
+    planPerDay: dateCheck.value ? perDayFor(targetCheck.value, todayISO(), dateCheck.value) : 0,
+    spendCategory: $('goal-category').value,
+    spendSub: $('goal-sub').hidden ? '' : $('goal-sub').value,
   });
   scheduleSync(ctx.accountId);
 
@@ -265,12 +349,36 @@ function renderRecurringCategories() {
   const select = $('recurring-category');
   select.innerHTML = '';
 
-  // Main categories only. A rule repeats a fixed amount, so the extra precision of a
-  // subcategory buys nothing here and would go stale as soon as one is renamed.
   for (const cat of CATEGORIES[kind]) {
     const option = document.createElement('option');
     option.value = cat.name;
     option.textContent = `${cat.icon} ${cat.name}`;
+    select.appendChild(option);
+  }
+
+  renderRecurringSubs();
+}
+
+// Rent and the internet bill both sit under "บิล/ค่าบริการ", so without the
+// subcategory the two rules would be impossible to tell apart in the list.
+function renderRecurringSubs() {
+  const kind = $('recurring-type').value;
+  const select = $('recurring-sub');
+  const subs = getSubcategories(ctx.accountId, kind, $('recurring-category').value);
+
+  select.innerHTML = '';
+  select.hidden = subs.length === 0;
+  if (subs.length === 0) return;
+
+  const any = document.createElement('option');
+  any.value = '';
+  any.textContent = 'ไม่ระบุหมวดย่อย';
+  select.appendChild(any);
+
+  for (const sub of subs) {
+    const option = document.createElement('option');
+    option.value = sub.name;
+    option.textContent = sub.name;
     select.appendChild(option);
   }
 }
@@ -322,7 +430,7 @@ function saveRecurring() {
     walletId: ctx.walletId,
     type: $('recurring-type').value,
     category: $('recurring-category').value,
-    sub: '',
+    sub: $('recurring-sub').hidden ? '' : $('recurring-sub').value,
     amount: amountCheck.value,
     note: $('recurring-note').value.trim().slice(0, 200),
     cycle,
@@ -362,7 +470,7 @@ function recurringRow(rule) {
 
   const name = document.createElement('span');
   name.className = 'recurring-name';
-  name.textContent = rule.category;
+  name.textContent = rule.sub ? `${rule.category} · ${rule.sub}` : rule.category;
 
   const amount = document.createElement('span');
   amount.className = `recurring-amount ${rule.type}`;
@@ -373,7 +481,10 @@ function recurringRow(rule) {
   const meta = document.createElement('div');
   meta.className = 'recurring-meta';
   const parts = [CYCLE_LABELS[rule.cycle] ? CYCLE_LABELS[rule.cycle](rule) : ''];
-  parts.push(rule.lastRun ? `ล่าสุด ${formatThaiDateLong(rule.lastRun)}` : 'ยังไม่เคยสร้าง');
+
+  // The next date is more use than the last one when deciding what is coming up.
+  const next = rule.active ? nextOccurrence(rule) : '';
+  parts.push(next ? `ครั้งถัดไป ${formatThaiDateLong(next)}` : 'ยังไม่เคยสร้าง');
   if (!rule.active) parts.push('หยุดไว้');
   meta.textContent = parts.filter(Boolean).join(' · ');
 
@@ -421,14 +532,10 @@ function renderGoals() {
 }
 
 function goalCard(goal) {
-  const saved = goal.savedAmount || 0;
-  const target = goal.targetAmount || 0;
-  const percent = target ? Math.min(100, (saved / target) * 100) : 0;
-  const reached = saved >= target;
-  const overdue = goal.targetDate && goal.targetDate < todayISO() && !reached;
+  const p = goalProgress(ctx.accountId, goal);
 
   const card = document.createElement('div');
-  card.className = 'goal-card';
+  card.className = `goal-card status-${p.status}`;
 
   const top = document.createElement('div');
   top.className = 'goal-card-top';
@@ -439,9 +546,11 @@ function goalCard(goal) {
   name.textContent = goal.name;
   nameWrap.appendChild(name);
 
-  if (reached) {
+  if (p.status === STATUS.DONE) {
+    nameWrap.appendChild(badge('ใช้เงินแล้ว', 'badge-paid'));
+  } else if (p.status === STATUS.REACHED) {
     nameWrap.appendChild(badge('ถึงเป้าแล้ว 🎉', 'badge-done'));
-  } else if (overdue) {
+  } else if (p.overdue) {
     nameWrap.appendChild(badge('เลยกำหนด', 'badge-overdue'));
   }
 
@@ -451,7 +560,11 @@ function goalCard(goal) {
   del.textContent = '🗑';
   del.title = 'ลบเป้าหมาย';
   del.addEventListener('click', () => {
-    if (!confirm(`ลบเป้าหมาย "${goal.name}" ?`)) return;
+    const extra =
+      p.status === STATUS.DONE
+        ? '\n\nรายจ่ายที่บันทึกไปแล้วจะยังอยู่ เพราะเป็นประวัติจริง'
+        : '\n\nเงินที่ออมไว้ไม่ได้หายไปไหน เพราะยังอยู่ในกระเป๋าตลอด';
+    if (!confirm(`ลบเป้าหมาย "${goal.name}" ?${extra}`)) return;
     deleteGoal(ctx.accountId, goal.id);
     scheduleSync(ctx.accountId);
     renderPlan();
@@ -461,13 +574,13 @@ function goalCard(goal) {
 
   const amounts = document.createElement('div');
   amounts.className = 'goal-amounts';
-  amounts.innerHTML = `เก็บได้ <strong>${formatBaht(saved)}</strong> จาก ${formatBaht(target)} (${Math.round(percent)}%)`;
+  amounts.innerHTML = `เก็บได้ <strong>${formatBaht(p.saved)}</strong> จาก ${formatBaht(p.target)} (${Math.round(p.percent)}%)`;
 
   const track = document.createElement('div');
   track.className = 'goal-bar-track';
   const fill = document.createElement('div');
   fill.className = 'goal-bar-fill';
-  fill.style.width = `${percent}%`;
+  fill.style.width = `${p.percent}%`;
   track.appendChild(fill);
 
   card.append(top, amounts, track);
@@ -479,8 +592,224 @@ function goalCard(goal) {
     card.appendChild(date);
   }
 
-  card.appendChild(addFundsRow(goal));
+  if (p.status === STATUS.SAVING) {
+    if (p.planPerDay > 0) card.appendChild(planLine(p));
+    card.appendChild(todayRow(goal, p));
+    if (goal.targetDate) card.appendChild(streakStrip(goal));
+  } else if (p.status === STATUS.REACHED) {
+    card.appendChild(payoutRow(goal, p));
+  } else {
+    card.appendChild(paidLine(goal));
+  }
+
   return card;
+}
+
+// The promise and the reality. When they differ, the second line is the one that
+// tells the user what today actually costs.
+function planLine(p) {
+  const line = document.createElement('div');
+  line.className = 'goal-plan';
+
+  const planned = document.createElement('span');
+  planned.textContent = `แผนวันละ ${formatBaht(p.planPerDay)}`;
+  line.appendChild(planned);
+
+  if (p.catchUpPerDay > 0 && p.catchUpPerDay !== p.planPerDay) {
+    const catchUp = document.createElement('span');
+    catchUp.className = p.catchUpPerDay > p.planPerDay ? 'goal-catchup behind' : 'goal-catchup ahead';
+    catchUp.textContent =
+      p.catchUpPerDay > p.planPerDay
+        ? `ตามไม่ทัน ต้องวันละ ${formatBaht(p.catchUpPerDay)} เหลือ ${p.daysLeft} วัน`
+        : `นำแผนอยู่ เหลือวันละ ${formatBaht(p.catchUpPerDay)} อีก ${p.daysLeft} วัน`;
+    line.appendChild(catchUp);
+  }
+
+  return line;
+}
+
+// One tick per day, with the amount editable before it is recorded. Ticking the same
+// day again edits that day rather than stacking a second deposit on top.
+function todayRow(goal, p) {
+  const today = todayISO();
+  const existing = getSavings(ctx.accountId, goal.id).find((s) => s.date === today);
+
+  const row = document.createElement('div');
+  row.className = 'goal-today';
+  if (existing) row.classList.add('ticked');
+
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.className = 'goal-tick';
+  box.checked = !!existing;
+  box.title = 'บันทึกว่าวันนี้ออมแล้ว';
+
+  const label = document.createElement('span');
+  label.className = 'goal-today-label';
+  label.textContent = existing ? 'ออมแล้ววันนี้' : 'ออมวันนี้';
+
+  const amount = document.createElement('input');
+  amount.type = 'number';
+  amount.className = 'text-input goal-today-amount';
+  amount.min = '0';
+  amount.step = '0.01';
+  amount.value = existing ? String(existing.amount) : String(p.planPerDay || p.remaining || '');
+  amount.setAttribute('aria-label', 'ยอดที่ออมวันนี้');
+
+  const save = () => {
+    const check = validateAmount(amount.value, { label: 'ยอดที่ออม' });
+    if (!check.ok) {
+      showToast(check.error, 'warn');
+      box.checked = !!existing;
+      return;
+    }
+    setSaving(ctx.accountId, {
+      goalId: goal.id,
+      walletId: goal.walletId,
+      date: today,
+      amount: check.value,
+    });
+    scheduleSync(ctx.accountId);
+    renderPlan();
+  };
+
+  box.addEventListener('change', () => {
+    if (box.checked) {
+      save();
+      return;
+    }
+    deleteSaving(ctx.accountId, goal.id, today);
+    scheduleSync(ctx.accountId);
+    renderPlan();
+  });
+
+  // Editing the number while the day is already ticked corrects that day.
+  amount.addEventListener('change', () => {
+    if (box.checked) save();
+  });
+
+  row.append(box, label, amount);
+  return row;
+}
+
+// Seven squares, one per day. Filled means the plan was met that day.
+function streakStrip(goal) {
+  const strip = document.createElement('div');
+  strip.className = 'goal-streak';
+
+  for (const day of recentDays(ctx.accountId, goal)) {
+    const cell = document.createElement('span');
+    cell.className = 'goal-streak-day';
+    if (day.amount > 0) cell.classList.add(day.met ? 'met' : 'partial');
+    cell.title = day.amount > 0
+      ? `${formatThaiDate(day.date)} ออม ${formatBaht(day.amount)}`
+      : `${formatThaiDate(day.date)} ยังไม่ได้ออม`;
+    strip.appendChild(cell);
+  }
+
+  const note = document.createElement('span');
+  note.className = 'goal-streak-note';
+  note.textContent = '7 วันล่าสุด';
+  strip.appendChild(note);
+
+  return strip;
+}
+
+// The money is saved but still in the wallet. Nothing has been spent until the user
+// says so here, which is the moment the expense is finally recorded.
+function payoutRow(goal, p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'goal-payout';
+
+  const note = document.createElement('p');
+  note.className = 'goal-payout-note';
+  note.textContent =
+    'ออมครบแล้ว เงินยังอยู่ในกระเป๋าจนกว่าจะกดใช้ ตอนกดใช้ระบบจะบันทึกเป็นรายจ่ายจริงให้';
+  wrap.appendChild(note);
+
+  const category = document.createElement('select');
+  category.className = 'text-input';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'เลือกหมวดที่จะใช้เงิน';
+  category.appendChild(placeholder);
+  for (const cat of CATEGORIES.expense) {
+    const option = document.createElement('option');
+    option.value = cat.name;
+    option.textContent = `${cat.icon} ${cat.name}`;
+    category.appendChild(option);
+  }
+  category.value = goal.spendCategory || '';
+
+  const sub = document.createElement('select');
+  sub.className = 'text-input';
+  const fillSubs = () => {
+    sub.innerHTML = '';
+    const subs = category.value ? getSubcategories(ctx.accountId, 'expense', category.value) : [];
+    sub.hidden = subs.length === 0;
+    if (subs.length === 0) return;
+    const any = document.createElement('option');
+    any.value = '';
+    any.textContent = 'ไม่ระบุหมวดย่อย';
+    sub.appendChild(any);
+    for (const s of subs) {
+      const option = document.createElement('option');
+      option.value = s.name;
+      option.textContent = s.name;
+      sub.appendChild(option);
+    }
+    sub.value = goal.spendSub || '';
+  };
+  fillSubs();
+  category.addEventListener('change', fillSubs);
+
+  const amount = document.createElement('input');
+  amount.type = 'number';
+  amount.className = 'text-input';
+  amount.min = '0';
+  amount.step = '0.01';
+  amount.value = String(p.saved);
+  amount.setAttribute('aria-label', 'ยอดที่จะใช้');
+
+  const pay = document.createElement('button');
+  pay.type = 'button';
+  pay.className = 'btn btn-primary btn-block';
+  pay.textContent = 'ใช้เงินก้อนนี้';
+  pay.addEventListener('click', () => {
+    if (!category.value) {
+      showToast('เลือกหมวดที่จะใช้เงินก่อน', 'warn');
+      return;
+    }
+    const check = validateAmount(amount.value, { label: 'ยอดที่จะใช้' });
+    if (!check.ok) {
+      showToast(check.error, 'warn');
+      return;
+    }
+    if (!confirm(`บันทึกรายจ่าย ${formatBaht(check.value)} ในหมวด "${category.value}" ?\n\nยอดคงเหลือของกระเป๋าจะลดลงตอนนี้ และภารกิจนี้จะถือว่าจบ`)) return;
+
+    payOutGoal(ctx.accountId, goal, {
+      amount: check.value,
+      category: category.value,
+      sub: sub.hidden ? '' : sub.value,
+    });
+    scheduleSync(ctx.accountId);
+    if (onGoalPaid) onGoalPaid();
+    renderPlan();
+    showToast(`ใช้เงินจากเป้าหมาย "${goal.name}" แล้ว`, 'info');
+  });
+
+  wrap.append(category, sub, amount, pay);
+  return wrap;
+}
+
+function paidLine(goal) {
+  const line = document.createElement('div');
+  line.className = 'goal-paid';
+  const label = goal.spendSub ? `${goal.spendCategory} · ${goal.spendSub}` : goal.spendCategory;
+  line.textContent = goal.paidAt
+    ? `ใช้ไปกับ ${label} เมื่อ ${formatThaiDateLong(goal.paidAt)}`
+    : `ใช้ไปกับ ${label}`;
+  return line;
 }
 
 function badge(text, className) {
@@ -491,47 +820,3 @@ function badge(text, className) {
 }
 
 // Inline input rather than window.prompt, to match the rest of the app.
-function addFundsRow(goal) {
-  const row = document.createElement('div');
-  row.className = 'goal-add-row';
-
-  const input = document.createElement('input');
-  input.type = 'number';
-  input.className = 'text-input goal-add-input';
-  input.placeholder = 'เพิ่มเงินเข้าเป้าหมาย';
-  input.min = '0';
-  input.step = '0.01';
-
-  const error = document.createElement('div');
-  error.className = 'inline-error';
-  error.hidden = true;
-
-  const submit = () => {
-    const check = validateAmount(input.value, { label: 'จำนวนเงิน' });
-    if (!check.ok) {
-      error.textContent = check.error;
-      error.hidden = false;
-      return;
-    }
-    // Saving past the target is allowed; the bar caps but the number is real.
-    updateGoal(ctx.accountId, goal.id, { savedAmount: (goal.savedAmount || 0) + check.value });
-    scheduleSync(ctx.accountId);
-    renderPlan();
-  };
-
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn btn-primary goal-add-btn';
-  btn.textContent = '+ เพิ่มเงิน';
-  btn.addEventListener('click', submit);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submit();
-  });
-
-  const inputs = document.createElement('div');
-  inputs.className = 'goal-add-inputs';
-  inputs.append(input, btn);
-
-  row.append(inputs, error);
-  return row;
-}

@@ -18,6 +18,7 @@ import { transactionRow } from './txrow.js';
 import { iconForCategory } from './categories.js';
 import { prefillEntry } from './entry.js';
 import { openCats } from './cats.js';
+import { renderCalendar } from './calendar.js';
 import { formatBaht, formatBahtShort, formatThaiDateLong, formatMonthYear } from './format.js';
 import { todayISO, toISODate } from './validate.js';
 
@@ -65,6 +66,7 @@ export function renderHome() {
   if (!hasWallet) return;
 
   renderPins();
+  renderCalendar();
   renderMonthSummary();
   renderRecent();
   renderBudgetCard();

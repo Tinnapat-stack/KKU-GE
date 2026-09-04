@@ -20,6 +20,7 @@ const EMPTY_DATA = {
   categories: [],
   budgets: [],
   recurring: [],
+  savings: [],
 };
 
 export function uid() {
@@ -179,7 +180,8 @@ export function purgeTombstones(accountId) {
     d.goals.length +
     d.categories.length +
     d.budgets.length +
-    d.recurring.length;
+    d.recurring.length +
+    d.savings.length;
   const before = count(data);
 
   data.wallets = data.wallets.filter(keep);
@@ -188,6 +190,7 @@ export function purgeTombstones(accountId) {
   data.categories = data.categories.filter(keep);
   data.budgets = data.budgets.filter(keep);
   data.recurring = data.recurring.filter(keep);
+  data.savings = data.savings.filter(keep);
 
   const after = count(data);
   if (after !== before) saveData(accountId, data);
@@ -232,6 +235,7 @@ export function deleteWallet(accountId, walletId) {
   data.goals.filter((g) => g.walletId === walletId && !g.deletedAt).forEach(kill);
   data.budgets.filter((b) => b.walletId === walletId && !b.deletedAt).forEach(kill);
   data.recurring.filter((r) => r.walletId === walletId && !r.deletedAt).forEach(kill);
+  data.savings.filter((s) => s.walletId === walletId && !s.deletedAt).forEach(kill);
   saveData(accountId, data);
 }
 
@@ -349,10 +353,101 @@ export function getGoals(accountId, walletId) {
   return walletId ? list.filter((g) => g.walletId === walletId) : list;
 }
 
+/* ---------- Savings ---------- */
+// Money set aside for a goal is NOT a transaction. It is still sitting in the wallet;
+// the user has only promised themselves what it is for. Recording it as income or
+// expense would move the balance twice: once when it is put aside, once when it is
+// actually spent. So savings live in their own collection, and only the payout at the
+// end becomes a real expense.
+//
+// One record per deposit rather than a running total on the goal, so a day's entry can
+// be corrected or removed without guessing what it used to be.
+
+export function getSavings(accountId, goalId) {
+  const list = alive(getData(accountId).savings);
+  return goalId ? list.filter((s) => s.goalId === goalId) : list;
+}
+
+export function savedFor(accountId, goalId) {
+  return getSavings(accountId, goalId).reduce((sum, s) => sum + s.amount, 0);
+}
+
+// One deposit per goal per day: ticking the same day twice edits rather than stacks,
+// which is what the daily checklist means.
+export function setSaving(accountId, { goalId, walletId, date, amount }) {
+  const data = getData(accountId);
+  const stamp = now();
+  const existing = alive(data.savings).find((s) => s.goalId === goalId && s.date === date);
+
+  if (existing) {
+    existing.amount = amount;
+    existing.updatedAt = stamp;
+    saveData(accountId, data);
+    return existing;
+  }
+
+  const record = { id: uid(), goalId, walletId, date, amount, createdAt: stamp, updatedAt: stamp };
+  data.savings.push(record);
+  saveData(accountId, data);
+  return record;
+}
+
+export function deleteSaving(accountId, goalId, date) {
+  const data = getData(accountId);
+  const stamp = now();
+  const target = alive(data.savings).find((s) => s.goalId === goalId && s.date === date);
+  if (!target) return false;
+
+  target.deletedAt = stamp;
+  target.updatedAt = stamp;
+  saveData(accountId, data);
+  return true;
+}
+
+// Goals written before savings existed carry the total in `savedAmount`. It becomes a
+// single deposit dated when the goal was made, so no money disappears from the screen.
+// Written back once, at login, and safe to repeat because the marker stays on the goal.
+export function migrateSavings(accountId) {
+  const data = getData(accountId);
+  let moved = 0;
+
+  for (const goal of data.goals) {
+    if (goal.savedMigrated || !goal.savedAmount) continue;
+    data.savings.push({
+      id: uid(),
+      goalId: goal.id,
+      walletId: goal.walletId,
+      date: (goal.createdAt || now()).slice(0, 10),
+      amount: goal.savedAmount,
+      note: 'ยอดที่เก็บไว้ก่อนมีแผนออมรายวัน',
+      createdAt: goal.createdAt || now(),
+      updatedAt: now(),
+    });
+    goal.savedMigrated = true;
+    moved++;
+  }
+
+  if (moved) saveData(accountId, data);
+  return moved;
+}
+
 export function addGoal(accountId, goal) {
   const data = getData(accountId);
   const stamp = now();
-  const record = { id: uid(), createdAt: stamp, updatedAt: stamp, savedAmount: 0, ...goal };
+  const record = {
+    id: uid(),
+    createdAt: stamp,
+    updatedAt: stamp,
+    savedAmount: 0,
+    // Nothing to move across for a goal made after savings became their own records.
+    savedMigrated: true,
+    status: 'saving',
+    planPerDay: 0,
+    spendCategory: '',
+    spendSub: '',
+    paidTxId: '',
+    ...goal,
+  };
   data.goals.push(record);
   saveData(accountId, data);
   return record;
@@ -748,7 +843,8 @@ export function previewImport(accountId, imported) {
   const categories = mergeList(data.categories, imported.categories || []);
   const budgets = mergeList(data.budgets, imported.budgets || []);
   const recurring = mergeList(data.recurring, imported.recurring || []);
-  const all = [wallets, transactions, goals, categories, budgets, recurring];
+  const savings = mergeList(data.savings, imported.savings || []);
+  const all = [wallets, transactions, goals, categories, budgets, recurring, savings];
 
   return {
     added: all.reduce((n, r) => n + r.added, 0),
@@ -766,6 +862,7 @@ export function mergeImported(accountId, imported, replace = false) {
       categories: imported.categories || [],
       budgets: imported.budgets || [],
       recurring: imported.recurring || [],
+      savings: imported.savings || [],
     });
     return;
   }
@@ -777,6 +874,7 @@ export function mergeImported(accountId, imported, replace = false) {
   data.categories = mergeList(data.categories, imported.categories || []).list;
   data.budgets = mergeList(data.budgets, imported.budgets || []).list;
   data.recurring = mergeList(data.recurring, imported.recurring || []).list;
+  data.savings = mergeList(data.savings, imported.savings || []).list;
   saveData(accountId, data);
 }
 
