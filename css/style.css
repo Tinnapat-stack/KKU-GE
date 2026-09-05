@@ -283,7 +283,10 @@ button, input { font-family: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px 8px;
+  /* Installed on a phone there is no browser chrome, so the status bar sits on top
+     of the page and the header has to step out from under it. The inset is zero in
+     an ordinary tab, which leaves the padding at its usual 16px. */
+  padding: calc(16px + env(safe-area-inset-top)) 18px 8px;
 }
 
 .header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -322,7 +325,65 @@ button, input { font-family: inherit; }
   color: #e8bf5f;
 }
 
-main#pages { flex: 1; padding: 10px 16px 96px; }
+/* ---------- Install card and the update bar ---------- */
+
+.install-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 8px;
+  padding: 11px 12px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+.install-text-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.install-title { font-size: 13px; font-weight: 700; color: var(--gold); line-height: 1.55; }
+.install-text { font-size: 12.5px; color: var(--muted-light); line-height: 1.55; }
+.install-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.install-actions .btn { white-space: nowrap; }
+.install-dismiss {
+  background: none;
+  border: none;
+  color: var(--muted-light);
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+/* Sits above the bottom nav, which is 4px taller than its own padding suggests. */
+.update-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  width: calc(100% - 32px);
+  max-width: 448px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  background: var(--glass-solid);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  z-index: 30;
+}
+.update-text { font-size: 13px; color: var(--text-light); line-height: 1.55; }
+.update-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+@media (max-width: 360px) {
+  .install-card { flex-wrap: wrap; }
+  .install-actions { flex-direction: row; width: 100%; }
+}
+
+/* The bottom padding clears the fixed nav, which itself grows by the home
+   indicator's inset once viewport-fit=cover is in play. */
+main#pages { flex: 1; padding: 10px 16px calc(96px + env(safe-area-inset-bottom)); }
 .page { animation: fadeIn 0.25s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
 
@@ -1865,6 +1926,7 @@ main#pages { flex: 1; padding: 10px 16px 96px; }
   #app,
   #auth,
   .toast-stack,
+  .update-bar,
   .report-chrome,
   .drawer-overlay,
   .modal-overlay { display: none !important; }

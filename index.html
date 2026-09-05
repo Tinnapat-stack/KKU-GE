@@ -2,8 +2,23 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8" />
-<meta id="viewport-meta" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta id="viewport-meta" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>P Smart Wallet 888</title>
+
+<!-- Installable app. Every path here is relative because GitHub Pages serves this
+     from /KKU-GE/, not from the root of the domain. -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#141b29" />
+<meta name="description" content="สมุดรายรับรายจ่ายที่เก็บข้อมูลไว้ในเครื่องของคุณเอง" />
+
+<!-- iOS reads none of the manifest for the home-screen icon, so it gets its own tags. -->
+<link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+<link rel="icon" href="assets/icon/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="P Wallet" />
+
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -138,6 +153,19 @@
     <div id="sync-banner" class="sync-banner" hidden>
       <span>ต้องอนุญาตให้เข้าถึงไฟล์อีกครั้งเพื่อบันทึกอัตโนมัติ</span>
       <button id="sync-banner-btn" type="button" class="btn btn-small btn-primary">อนุญาต</button>
+    </div>
+
+    <!-- Shown until the app is installed or the user waves it away -->
+    <div id="install-card" class="install-card" hidden>
+      <div class="install-text-wrap">
+        <span class="install-title">ใช้เป็นแอปบนเครื่องได้</span>
+        <span id="install-text" class="install-text"></span>
+      </div>
+      <div class="install-actions">
+        <button id="install-do" type="button" class="btn btn-small btn-primary" hidden>ติดตั้งแอป</button>
+        <button id="install-how" type="button" class="btn btn-small btn-secondary">วิธีติดตั้ง</button>
+      </div>
+      <button id="install-dismiss" type="button" class="install-dismiss" aria-label="ไม่ต้องแสดงอีก">✕</button>
     </div>
 
     <main id="pages">
@@ -573,6 +601,16 @@
     </nav>
   </div>
 
+  <!-- A newer version is on the device and waiting. Never swapped in unasked,
+       because the user may be part-way through typing an entry. -->
+  <div id="update-bar" class="update-bar" hidden>
+    <span class="update-text">มีเวอร์ชันใหม่พร้อมแล้ว</span>
+    <div class="update-actions">
+      <button id="update-now" type="button" class="btn btn-small btn-primary">อัปเดตเลย</button>
+      <button id="update-later" type="button" class="btn btn-small btn-secondary">ไว้ก่อน</button>
+    </div>
+  </div>
+
   <!-- MENU: sheet first, then account and wallets -->
   <div id="drawer" class="drawer-overlay" hidden>
     <div class="drawer-card">
@@ -646,6 +684,19 @@
           กันไม่ให้หน้าจอซูมเข้าเองตอนแตะช่องกรอกหรือแตะสองครั้ง
           ถ้าอยากขยายดูตัวเล็กๆ ให้ปิดสวิตช์นี้ก่อน
         </p>
+
+        <label class="checkbox-row">
+          <input id="sound-toggle" type="checkbox" checked />
+          <span>เสียงตอนกดบันทึก</span>
+        </label>
+        <p class="field-help">
+          เสียงสั้นๆ ตอนบันทึกสำเร็จ รายรับเป็นเสียงขึ้น รายจ่ายเป็นเสียงลง
+          ถ้าเครื่องปิดเสียงอยู่ก็จะเงียบตามเครื่อง
+        </p>
+
+        <div class="drawer-actions">
+          <button id="open-install-btn" type="button" class="btn btn-secondary btn-small">ติดตั้งเป็นแอป</button>
+        </div>
       </div>
 
       <div class="drawer-section">
