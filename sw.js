@@ -42,6 +42,7 @@ const SHELL = [
   'js/home.js',
   'js/homebg.js',
   'js/icons.js',
+  'js/keyboard.js',
   'js/plan.js',
   'js/pwa.js',
   'js/recurring.js',

@@ -411,6 +411,7 @@ const DOCS = { teacher: TEACHER_DOC, guide: GUIDE_DOC, install: INSTALL_DOC };
 const CHANGE_GROUPS = [
   { key: 'added', label: 'เพิ่ม' },
   { key: 'changed', label: 'ปรับ' },
+  { key: 'fixed', label: 'แก้' },
   { key: 'removed', label: 'ลบ' },
 ];
 

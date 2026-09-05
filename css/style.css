@@ -759,6 +759,21 @@ main#pages { flex: 1; padding: 10px 16px calc(96px + env(safe-area-inset-bottom)
   border-top: 1px solid rgba(255,255,255,0.06);
   padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
   z-index: 20;
+  transition: transform 0.18s ease;
+}
+
+/* While the on-screen keyboard is up, iOS Safari draws fixed elements in the wrong
+   place during a scroll, so the nav tears loose and floats over the keyboard. It is
+   unreachable behind the keyboard anyway, so it steps off screen until the keyboard
+   closes. See js/keyboard.js. */
+body.keyboard-open .bottom-nav {
+  transform: translate(-50%, 200%);
+  pointer-events: none;
+}
+body.keyboard-open .update-bar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav { transition: none; }
 }
 .nav-btn {
   background: none;
@@ -1690,6 +1705,7 @@ main#pages { flex: 1; padding: 10px 16px calc(96px + env(safe-area-inset-bottom)
 }
 .group-added .release-group-label { color: #8fe0bd; background: var(--green-soft); }
 .group-changed .release-group-label { color: #f0cc7e; background: var(--gold-soft); }
+.group-fixed .release-group-label { color: #9fd0f0; background: rgba(110,170,215,0.18); }
 .group-removed .release-group-label { color: #ffb4b1; background: var(--red-soft); }
 
 .release-list { margin: 0; padding-left: 18px; }
