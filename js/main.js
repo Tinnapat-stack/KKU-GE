@@ -32,6 +32,8 @@ import { initTransfer, setTransferContext, openTransfer } from './transfer.js';
 import { initRecurring, setRecurringContext, checkDue } from './recurring.js';
 import { initReport, setReportContext, openReport } from './report.js';
 import { initCalendar, setCalendarContext } from './calendar.js';
+import { initPWA } from './pwa.js';
+import { initSound } from './sound.js';
 import { APP_VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
@@ -50,14 +52,18 @@ const ZOOM_KEY = 'psw_zoom_lock';
 // The lock stops the automatic zoom on a double tap. What actually stops Safari from
 // zooming in when a field is focused is the 16px minimum on every input, which the
 // stylesheet enforces whether the lock is on or off.
+//
+// Both strings carry viewport-fit=cover. Without it env(safe-area-inset-*) reports
+// zero, and the bottom nav of an installed app would sit under the iPhone's home
+// indicator whenever the switch happened to be off.
 function applyZoomLock(locked) {
   const meta = $('viewport-meta');
   if (!meta) return;
   meta.setAttribute(
     'content',
     locked
-      ? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
-      : 'width=device-width, initial-scale=1.0'
+      ? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
+      : 'width=device-width, initial-scale=1.0, viewport-fit=cover'
   );
 }
 
@@ -88,6 +94,8 @@ function initZoomLock() {
 function boot() {
   renderIcons();
   initHomeBackground();
+  initPWA();
+  initSound();
   initAuth(enterApp);
   filesync.installLifecycleHooks();
   filesync.onStatus(renderSyncStatus);
@@ -204,6 +212,7 @@ function initShell() {
   $('open-guide-btn').addEventListener('click', () => openDoc('guide'));
   $('open-teacher-btn').addEventListener('click', () => openDoc('teacher'));
   $('open-changelog-btn').addEventListener('click', () => openDoc('changelog'));
+  $('open-install-btn').addEventListener('click', () => openDoc('install'));
 
   $('open-cats-btn').addEventListener('click', openCats);
   $('open-report-btn').addEventListener('click', openReport);

@@ -32,6 +32,7 @@ import { formatBaht, formatThaiDate } from './format.js';
 import { CATEGORIES, iconForCategory } from './categories.js';
 import { transactionRow } from './txrow.js';
 import { confirmDeleteCategory } from './cats.js';
+import { play } from './sound.js';
 
 const RECENT_LIMIT = 20;
 const $ = (id) => document.getElementById(id);
@@ -489,6 +490,8 @@ function saveEntry() {
 
   renderEntry();
   flashSaved();
+  // Rising for money in, falling for money out. Silent when the switch in MENU is off.
+  play(currentType === 'income' ? 'income' : 'expense');
   checkBudgetAlerts();
 }
 
