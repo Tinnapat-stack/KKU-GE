@@ -10,7 +10,7 @@
 // Kept as plain data so the panel that shows it stays a renderer with no content
 // of its own.
 
-export const APP_VERSION = 'V1.4.5';
+export const APP_VERSION = 'V1.4.6';
 
 export const VERSION_RULE =
   'เลขเวอร์ชันอ่านว่า V N1.N2.N3 โดย N2 คือเฟส หนึ่งเฟสเท่ากับหนึ่งอัปเดต ' +
@@ -20,6 +20,21 @@ export const VERSION_RULE =
 
 // Newest first, which is the order people read a changelog in.
 export const RELEASES = [
+  {
+    version: 'V1.4.6',
+    phase: 'อัปเดตย่อยของเฟส 4',
+    date: '5 กันยายน 2569',
+    summary: 'แก้แถบเมนูล่างที่หลุดลอยขึ้นมาทับแป้นพิมพ์บน iPhone',
+    added: [],
+    changed: [
+      'แถบเมนูล่างจะเลื่อนลงพ้นจอตอนแป้นพิมพ์ขึ้น แล้วกลับมาเองเมื่อพิมพ์เสร็จ',
+      'แถบแจ้งเวอร์ชันใหม่ก็ซ่อนตอนกำลังพิมพ์เหมือนกัน',
+    ],
+    removed: [],
+    fixed: [
+      'บน iPhone เวลาพิมพ์แล้วเลื่อนหน้าจอ แถบโฮม/บันทึก/สถิติ/วางแผน จะหลุดลอยขึ้นมาทับแป้นพิมพ์และแถบของ Safari เพราะ Safari วางตำแหน่งของสิ่งที่ตรึงไว้ผิดขณะแป้นพิมพ์เปิดอยู่ แก้โดยเอาแถบออกจากจอไปเลยระหว่างนั้น ซึ่งกดไม่ถึงอยู่แล้วเพราะแป้นพิมพ์บังอยู่',
+    ],
+  },
   {
     version: 'V1.4.5',
     phase: 'อัปเดตย่อยของเฟส 4',

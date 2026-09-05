@@ -34,6 +34,7 @@ import { initReport, setReportContext, openReport } from './report.js';
 import { initCalendar, setCalendarContext } from './calendar.js';
 import { initPWA } from './pwa.js';
 import { initSound } from './sound.js';
+import { initKeyboard } from './keyboard.js';
 import { APP_VERSION } from './version.js';
 
 const $ = (id) => document.getElementById(id);
@@ -96,6 +97,7 @@ function boot() {
   initHomeBackground();
   initPWA();
   initSound();
+  initKeyboard();
   initAuth(enterApp);
   filesync.installLifecycleHooks();
   filesync.onStatus(renderSyncStatus);
