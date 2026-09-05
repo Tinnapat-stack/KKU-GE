@@ -48,6 +48,39 @@ function monthlyDate(year, month, dayOfMonth) {
   return toISODate(new Date(year, month, day));
 }
 
+// Does this rule fall on this exact date? The calendar looks forward and does not
+// care whether a date has already been generated, so it cannot use dueDates, which
+// walks from the last run.
+export function occursOn(rule, dateISO) {
+  if (!rule.active) return false;
+  const start = rule.startDate || '';
+  if (start && dateISO < start) return false;
+
+  if (rule.cycle === 'days') {
+    const step = Math.max(1, Number(rule.intervalDays) || 30);
+    const from = new Date(`${start || dateISO}T00:00:00`);
+    const on = new Date(`${dateISO}T00:00:00`);
+    const days = Math.round((on - from) / 86400000);
+    return days >= 0 && days % step === 0;
+  }
+
+  const day = Math.min(Math.max(1, Number(rule.dayOfMonth) || 1), 31);
+  const on = new Date(`${dateISO}T00:00:00`);
+  return dateISO === monthlyDate(on.getFullYear(), on.getMonth(), day);
+}
+
+// The next date on or after today that this rule falls on. Scanning forward is fine
+// because the answer is at most one cycle away, and a year is the safety net.
+export function nextOccurrence(rule, from = todayISO()) {
+  const cursor = new Date(`${from}T00:00:00`);
+  for (let i = 0; i < 366; i++) {
+    const date = toISODate(cursor);
+    if (occursOn(rule, date)) return date;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return '';
+}
+
 // Every date a rule came due, from the day after its last run up to today.
 export function dueDates(rule, today = todayISO()) {
   const dates = [];

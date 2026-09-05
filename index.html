@@ -190,6 +190,37 @@
             </div>
           </div>
 
+          <!-- What is already committed, on real dates. Scheduled items only. -->
+          <div class="home-card cal-card">
+            <div class="home-card-head">
+              <h3>ปฏิทินรายการประจำ</h3>
+              <div class="cal-tabs">
+                <button type="button" class="cal-tab active" data-view="month">เดือน</button>
+                <button type="button" class="cal-tab" data-view="week">สัปดาห์</button>
+              </div>
+            </div>
+
+            <div class="cal-nav">
+              <button id="cal-prev" type="button" class="period-arrow" aria-label="ก่อนหน้า">‹</button>
+              <span id="cal-title" class="cal-title"></span>
+              <button id="cal-next" type="button" class="period-arrow" aria-label="ถัดไป">›</button>
+              <button id="cal-today" type="button" class="cal-today-btn">วันนี้</button>
+            </div>
+
+            <div id="cal-body" class="cal-body cal-month"></div>
+            <div id="cal-detail" class="cal-detail" hidden></div>
+
+            <div id="cal-empty" class="home-budget-empty" hidden>
+              ยังไม่มีรายการประจำหรือแผนออม ตั้งได้ที่หน้าวางแผน แล้ววันที่ต้องจ่ายจะมาขึ้นตรงนี้
+            </div>
+
+            <div class="cal-legend">
+              <span><i class="cal-dot dot-income"></i> รายรับ</span>
+              <span><i class="cal-dot dot-expense"></i> รายจ่าย</span>
+              <span><i class="cal-dot dot-saving"></i> ออมตามเป้าหมาย</span>
+            </div>
+          </div>
+
           <div class="home-card">
             <div class="home-card-head">
               <h3>ภาพรวมเดือนนี้</h3>
@@ -438,6 +469,7 @@
 
               <label class="field-label" for="recurring-category">หมวดหมู่</label>
               <select id="recurring-category" class="text-input"></select>
+              <select id="recurring-sub" class="text-input" hidden></select>
 
               <div class="field-label">จำนวนเงินต่อรอบ</div>
               <div class="amount-box goal-amount">
@@ -501,6 +533,11 @@
 
             <div class="field-label">วันที่ต้องการให้ถึงเป้า <span class="muted">(ไม่ใส่ก็ได้)</span></div>
             <input id="goal-date-input" type="date" class="text-input" />
+            <p id="goal-plan-hint" class="field-help" hidden></p>
+
+            <label class="field-label" for="goal-category">จะเอาเงินไปใช้กับหมวดไหน <span class="muted">(เลือกทีหลังก็ได้)</span></label>
+            <select id="goal-category" class="text-input"></select>
+            <select id="goal-sub" class="text-input" hidden></select>
 
             <p id="goal-error" class="form-error" hidden></p>
             <div class="goal-form-actions">
